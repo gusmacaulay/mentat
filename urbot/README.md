@@ -9,11 +9,11 @@ change, and start it with:
 
 Or run it from any other desk:
 
-> :gato &add ['urbot' [%<some-desk> %ai-bot] !>("")]
+> :gato &add ['urbot' [%some-desk %ai-bot] !>("")]
 
 Or with any other command:
 
-> :gato &add ['mentat' [%<some-desk> %ai-bot] !>("")]
+> :gato &add ['mentat' [%some-desk %ai-bot] !>("")]
 
 See https://github.com/midsum-salrux/gato For more instructions on %gato.
 
