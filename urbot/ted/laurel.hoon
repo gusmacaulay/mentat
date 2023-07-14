@@ -1,13 +1,12 @@
-/-  spider, *gato, *s3
+/-  spider, *gato, *s3, *laurel
 /+  *strandio, aws
 =,  strand=strand:spider
 |%
-  ::  Parse the user input
   ::
+  ::  Parse user input
   ::    A needle such as "foo=" in a haystack such as "this is foo=bar really"
   ::    Will return the value "bar"
   ::
-
   ++  parse-input
     |=  [nedl=tape hstk=tape default=tape]
     ^-  tape
@@ -19,7 +18,7 @@
   ::
   ::  Decode json response from OpenAI
   ::
-  ++  decode-response
+  ++  decode-response-openai
     |=  =json
     ^-  @t
     ?>  ?=([%o *] json)
@@ -30,9 +29,23 @@
           =/  li  p.answer-li
           =/  txt-json  (~(got by li) 'text')
           (so:dejs:format txt-json)
-::
-:: Custom extract-body to get mime data
-:: 
+  ::
+  ::  Decode json response from HuggingFace/Inference
+  ::
+  ++  decode-inference-text-gen-response
+    |=  =json
+    ^-  @t
+    ?>  ?=([%a *] json)
+      :: json is an array - take the first element
+      =/  resp-obj  (snag 0 p.json)
+      ::=/  resp-obj  -.p.json
+      ?>  ?=([%o *] resp-obj)
+        =/  resp-text  p.resp-obj
+        =/  generated-text  (~(got by resp-text) 'generated_text')
+        (so:dejs:format generated-text)
+  ::
+  :: Custom extract-body to get mime data
+  :: 
   ++  extract-mime-body
     |=  =client-response:iris
     =/  m  (strand ,mime)
@@ -81,54 +94,46 @@
 ^-  form:m
 =/  =bird  !<(bird arg)
 
-:: stack trace on
-!:
-
-~&  "Running urbit AI chatbot"
-
-::
-:: Parse text.bird
-::
-
+:: Set up the model
+=/  model=inference-model  !<(inference-model vase.bird)
 =/  msg-origin=@p  author.memo.bird
 ;<  our-ship=@p   bind:m  get-our
 
-:: is vase.bird the original text the 
-:: bot was set up with?? Can use this
-:: as the ai-url to call
-:: or ai=<api-url> key=<api-key>
+:::: Keep these three lines to accept only messages from our
+:::: own ship.  Delete for public access to the chatbot
+::?.  =(msg-origin our-ship)
+::  ~&  "Message origin not our ship - ignoring"
+::  !!
 
-:: keep, or remove this as required
-:: without it, the bot will respond
-:: to chat messages originating from
-:: any ship.
-?.  =(msg-origin our-ship)
-  ~&  "Message origin not our ship - ignoring"
-  !!
-::  Need to ensure we're only interacting with our own ship's questions
 =/  question  text.bird
 
 ::
 :: Build HTTP request for Hugging Face
 ::
+
 :: URL
-=/  url  'https://api-inference.huggingface.co/models/Joeythemonster/anything-midjourney-v-4-1'
+=/  url  (crip (weld (trip 'https://api-inference.huggingface.co/models/') (trip id.model)))
 
 :: Headers (Auth key must be hidden!  ** DO NOT COMMIT **)
 =/  type  ['Content-Type' 'application/json']
-=/  auth  ['Authorization' 'Bearer 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']
+=/  auth  ['Authorization' api-key.model]
 
 =/  headers  `(list [@t @t])`[type auth ~]
 
 :: Body
 =/  prompt  ['inputs' s+question]
+=/  temperature  ['temperature' n+'1.0']
+=/  tokens  ['max_new_tokens' n+'64']
+
+=/  params  (pairs:enjs:format ~[temperature tokens])
 
 :: Depending on whether or not this is running before 
 :: or after the breaking json changes
 :: 413
-::  =/  json-body  (en:json:html o+(malt (limo ~[prompt])))
+::  =/  json-body  (en:json:html (pairs:enjs:format ~[prompt ['parameters' params]]))
 :: 414+
-=/  json-body  (crip (en-json:html o+(malt (limo ~[prompt]))))
+=/  json-body  (crip (en-json:html (pairs:enjs:format ~[prompt ['parameters' params]])))
+
 
 :::: ===============================================================================
 ::::
@@ -173,37 +178,55 @@
 ;<  ~                                 bind:m  (send-request request)
 ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response  
 ?~  resp 
-:: response is [%done ~] from %cancel
+  :: response is [%done ~] from %cancel
   (pure:m !>(['http error - cancelled' vase.bird]))
-:: reponse is [%done `client-response] from %finished
+
 ;<  our=@p     bind:m  get-our
 ;<  now=@da    bind:m  get-time
-::  Poke silo with the mime
 
+:: Extract status-code from xml
+=/  status-code  status-code.response-header.+>-.resp
+?.  =(status-code 200)
+  ::  Return error message from AI API
+  =/  msg  +:(need resp)
+  =/  file  +.msg
+  =/  xml  (cord +>+.file)
+  =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code) ": " (trip xml)))
+  (pure:m !>([return-msg vase.bird]))
+
+?-  type.model
+  %conversation
+:: 
+:: Conversation response (to be implemented)
+::
+
+(pure:m !>(['Sorry, conversation models have not yet been implemented.' vase.bird]))
+
+  %text-generation
 ::
 :: Text/chat response
 ::
-::;<  answer=@t  bind:m  (extract-body (need resp))
+;<  answer-txt=@t  bind:m  (extract-body (need resp))
+
 :: 413
-::=/  answer-json  (de:json:html answer)  
+::=/  answer-json  (de:json:html answer-txt)  
 :: 414+
-::=/  answer-json  (need (de-json:html answer))
-::=/  ai-answer  (decode-response answer-json)
+=/  answer-json  (need (de-json:html answer-txt))
+=/  ai-answer  (decode-inference-text-gen-response answer-json)
 
-::(pure:m !>([ai-answer vase.bird]))
+(pure:m !>([ai-answer vase.bird]))
 
-::
-:: Image response
-::
-~&  "extracting http response body..."
-;<  answer=mime  bind:m  (extract-mime-body (need resp))
-::~&  "... response recieved {<answer>}"  ::binary response
+  %image-generation
+ ::
+ ::Image response (poke silo with returned data)
+ ::
+
+;<  answer-img=mime  bind:m  (extract-mime-body (need resp))
 
 :: Get S3 credentials and configuration
 ;<  cred=update  bind:m  (scry update `path`['gx' 's3-store' 'credentials' 'noun' ~])
 ;<  cnfg=update  bind:m  (scry update `path`['gx' 's3-store' 'configuration' 'noun' ~])
 
-::~&  "config is: {<+.cnfg>}"
 ?>  ?=([%credentials *] cred)
 =/  endpoint  endpoint.credentials.cred
 =/  secret  secret-access-key.credentials.cred
@@ -213,101 +236,45 @@
 =/  bucket  current-bucket.configuration.cnfg
 =/  region  region.configuration.cnfg
 
-~&  "{<endpoint>}  {<secret>}  {<access-id>}  {<bucket>}  {<region>}"
-
 =/  host  (crip (scan (trip endpoint) ;~(pfix (jest 'https://') (star prn))))  :: e.g syd1.digitaloceanspaces.com
-
-::=/  filename  'file4.jpg'
-::=/  filename  'blah1.txt'
-::=/  filename  'image1.jpeg'
 =/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') ".jpg")
+=/  s3-url  (crip ;:(weld "https://" (trip host) "/" (trip bucket) "/" filename))
 
-=/  s3-url  (crip ;:(weld "https://" (trip host) "/" (trip bucket) "/" filename))  :: silo front-end
-~&  "s3-url: {<s3-url>}"
-
-:::: Get content-length, convert to @t to go in header
-=/  answ-lent  `tape`(scow %ud p.q.answer)                      :: gives "13.245" instead of "13245"
+:: Get content-length, convert to cord to go in header
+=/  answ-lent  `tape`(scow %ud p.q.answer-img)                      :: gives "13.245" instead of "13245"
 =/  cont-lent  (crip `tape`(skip answ-lent |=(a=@ =('.' a))))   :: '13245'
-~&  "cont-lent {<cont-lent>}" 
 
-:: ** silo front-end sends as image/jpeg
-::=/  content-type  'application/octet-stream'
-=/  content-type  'image/jpeg'
+:: Send as application/octet-stream, or jpeg for images?
+=/  content-type  'application/octet-stream'
+::=/  content-type  'image/jpeg'
 ::=/  content-type  'text/plain'
 
-::
-::  set up for for MinIO --------------------------------------------------
-::
-::=/  secret  'Iwe8gXIaHWqmhPZBynDyqPU8AjpDSWISHJqr127z'
-::=/  access-id  'JtgQstA2e17zvAgGQCdH'
-::=/  s3-url  'http://127.0.0.1:9000/wolfun/blah3.txt'
-::=/  host  '127.0.0.1:9000'
-:: -------------------------------------------------------------------------
-::
-::  Test by sending to front-end we control
-::
-::=/  s3-url  'http://127.0.0.1:5173/api/testput'
-::=/  host  'http://127.0.0.1:5173'  ::this works for localhost when we send without headers
-:: the issue is that "Content-Length" header was also being duplicated!!
-:: -------------------------------------------------------------------------
 
-
-::  set up aws (lib/aws.hoon)
+::  Set up aws (lib/aws.hoon)
 =/  aws-client  ~(. aws [region 's3' secret access-id now])
 
-::  set up headers
+::  Set up headers
 =/  s3-headers=(list [@t @t])  ~[['content-length' cont-lent] ['date' (crip (dust:chrono:userlib (yore now)))] ['host' host] ['x-amz-acl' 'public-read']]
-
-~&  " "
-~&  "s3-headers list is: {<s3-headers>}"
-~&  " "
 
 =/  s3-req=request:http
   :*  method=%'PUT'                                   :: 'PUT' file on S3
       url=s3-url                                      :: url as cord
       header-list=s3-headers                          :: (list [key=@t value=@t])
-      `q.answer                                       :: body - image file as binary (unit octs)
+      `q.answer-img                                   :: body - image file as binary (unit octs)
   ==
 
-:::: test by creating a new bucket - **** THIS WORKS!!! ******
+:::: Create a new bucket
 ::=/  s3-req=request:http
 ::  :*  method=%'PUT'
 ::      url='https://wolfun2.syd1.digitaloceanspaces.com'
 ::      ::[['date' (crip (dust:chrono:userlib (yore now)))] ['content-length' '4'] ['content-type' content-type] ['host' host] ['x-amz-acl' 'public-read']]
 ::      header-list=`(list [@t @t])`[['Host' 'wolfun2.syd1.digitaloceanspaces.com'] ~]
 ::      ~
-::      ::`(as-octs:mimes:html '')
-::      ::`(as-octs:mimes:html '<CreateBucketConfiguration><LocationConstraint>syd1</LocationConstraint></CreateBucketConfiguration>')
 ::  ==
-
-:: test by getting some image data
-:: will get it unauthenticated and without headers, but not with authentication on.
-::=/  s3-req=request:http
-::  :*  method=%'GET'
-::      url='https://syd1.digitaloceanspaces.com/wolfun/2023.6.14..02.46.07-lurcher.jpeg'
-::      ::header-list=`(list [@t @t])`[['Host' 'syd1.digitaloceanspaces.com/wolfun'] ~]
-::      ::header-list=`(list [@t @t])`[['Host' 'https://syd1.digitaloceanspaces.com'] ~]
-::      header-list=~
-::      ~
-::  ==
-
-:::: test a simple request to localhost test site
-::=/  s3-req=request:http
-::  :*  method=%'PUT'
-::      url='http://127.0.0.1:5173/api/testput'
-::      ::header-list=`(list [@t @t])`[['Host' 'syd1.digitaloceanspaces.com/wolfun'] ~]
-::      ::header-list=`(list [@t @t])`[['Host' 'https://syd1.digitaloceanspaces.com'] ~]
-::      ::header-list=~ :: with this - it works!!!  Host shows as http://127.0.0.1:5173
-::      header-list=s3-headers  :: it appears that other headers apart from Host might be duplicated - including 'Content-Length'
-::      `(as-octs:mimes:html 'blob')
-::  ==
-
-
-~&  "s3-req: {<s3-req>}"
 
 ::  Remove 'host' and 'content-length' headers from the final request
-::  as iris will add them in automatically creating an invalid HTTP request
-::  we need them for the authentication however, as they are essential for
+::  as iris will add them in automatically creating an invalid HTTP request.
+::  We need them for the authentication however, as they are essential for
 ::  creating the signature.
 =/  authenticated-req  (evict [(evict [(auth:aws-client s3-req) 'host']) 'content-length'])
 
@@ -315,23 +282,19 @@
 ;<  s3-resp=(unit client-response:iris)  bind:m  take-maybe-response  
 
 ?~  s3-resp 
-  :: response is [%done ~] from %cancel
-  (pure:m !>(['s3 upload failed - cancelled' vase.bird]))
-::=/  ret-type  -:(need s3-resp)
-::?+  ret-type  (pure:m !>(['s3 upload failed']))
-::  %finished
-~&  "s3-resp: {<s3-resp>}"
-=/  ret-msg  +:(need s3-resp)
-=/  ret-file  +.ret-msg
-=/  ret-xml  (cord +>+.ret-file)
-~&  "xml is: {<ret-xml>}"
+    :: response is [%done ~] from %cancel
+    (pure:m !>(['s3 upload failed - cancelled' vase.bird]))
 
-::=/  ret-xml  (cord q.data.full-file.ret-msg)
-::=/  ret-xml  (cord q.data.+>.ret-msg)
-::~&  "ret-xml is: {<ret-xml>}"
-
-:: create link for user and return in chat:
-::=/  image-link  
-=/  image-link  (crip ;:(weld "https://" (trip bucket) "." (trip host) "/" filename))
-
-(pure:m !>([image-link vase.bird]))
+  =/  s3-status-code  status-code.response-header.+>-.s3-resp
+  ?.  =(s3-status-code 200)
+    ::  Return error message from S3
+    =/  s3-msg  +:(need s3-resp)
+    =/  s3-file  +.s3-msg
+    =/  s3-xml  (cord +>+.s3-file)
+    =/  s3-return-msg  (crip ;:(weld "Error!  S3 returned status code " (scow %ud s3-status-code) ": " (trip s3-xml)))
+    (pure:m !>([s3-return-msg vase.bird]))
+  
+  ::  Return image and image link in message
+  =/  image-link  (crip ;:(weld "https://" (trip bucket) "." (trip host) "/" filename))
+  (pure:m !>([`reply`[%story [[[%image image-link 300 300 'laurel generated image'] ~] [[image-link] ~]]] vase.bird]))
+==
