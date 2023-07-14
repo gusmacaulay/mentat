@@ -37,8 +37,16 @@ Examples (assuming the laurel.hoon thread file is in a desk called laurel)
 See https://github.com/midsum-salrux/gato For more instructions on %gato.
 
 
+### Using the chatbot
+
+In a Group chat access the chatbot like so:
+```
+> /Talktome Once upon a time on an Urbit ship...
+> /DrawSomething A photorealistic image of an Urbit ship
+```
+
 ####  Other notes: 
 1. The current setup only answers questions from any ship that can access your group chat.
-If you want a chatbot that only answers your questions this can be changed at line 102.
+If you want a chatbot that only answers your questions this can be changed at line 102 in ted/laurel.hoon.
 2. Due to breaking changes in JSON parsing with 413 I have included the code for 413 and 414+,
 comment out whichever is unnecessary.
