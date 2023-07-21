@@ -3,6 +3,81 @@
 =,  strand=strand:spider
 |%
   ::
+  ::  Polling loop
+  ::
+  ++  poll
+    |=  arg=vase
+    =/  m  (strand ,vase)
+    ^-  form:m
+
+    =/  req  !<(request:http arg)
+    =/  counter  0      :: time-out after 20 seconds
+    =/  exit  'false'   :: exit loop on null http response, non-200 status code,
+                        :: status=failed, completed, or cancelled
+    =/  return  *[@t (unit @t)]
+
+    |-
+    ?:  |((gth counter 20) =(exit 'true'))
+      (pure:m !>(return))
+      ::`[%done !>(return)]
+    ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req) 
+    %=  $
+      counter    +(counter)
+      return     poll-resp
+      exit       ?:(|(=(-.poll-resp 'succeeded') =(-.poll-resp 'failed') =(-.poll-resp 'cancelled') =(-.poll-resp 'completed') =(-.poll-resp 'http-error')) 'true' 'false')
+    ==
+  ::
+  ::  Polling http-request
+  ::
+  ++  poll-replicate
+    |=  =request:http
+    =/  m  (strand ,[@t (unit @t)])
+    ^-  form:m
+
+    ;<  ~                                 bind:m  (send-request request)
+    ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response
+    
+    ?~  resp 
+       (pure:m ['http-error' ~])
+        ;<  our=@p     bind:m  get-our
+    ;<  now=@da    bind:m  get-time
+        :: Extract status-code from xml
+    =/  status-code  status-code.response-header.+>-.resp
+    ?.  =(status-code 200)
+      (pure:m ['http-error' `(crip (weld "HTTP error - status-code: " (trip status-code)))])
+    ;<  resp-txt=@t  bind:m  (extract-body (need resp))
+    :: 413
+    ::=/  resp-json  (de:json:html resp-txt)  
+    :: 414+
+    =/  resp-json  (need (de-json:html resp-txt))
+    =/  response  (decode-replicate-get-resp resp-json)
+    ?:  |(=(-.response 'starting') =(-.response 'processing'))
+      ;<  ~  bind:m  (sleep ~s1)
+      (pure:m [-.response ~])
+    (pure:m [-.response +.response])
+  ::
+  ::
+  ::  Decode json response from GET request to Replicate
+  ::  (returns status, and output url is available)
+  ::
+  ++  decode-replicate-get-resp
+    |=  =json
+    ^-  [@t (unit @t)]
+    ?>  ?=([%o *] json)
+      =/  resp-obj  p.json
+      =/  status  (~(got by resp-obj) 'status')
+      =/  return-status  (so:dejs:format status)
+      ?:  =(return-status 'succeeded')
+        =/  output  (~(got by resp-obj) 'output')
+        :: Success output is an array
+        ?>  ?=([%a *] output)
+          =/  return-data  (snag 0 p.output)
+          [return-status `(so:dejs:format return-data)]
+      ?.  =(return-status 'failed')
+        [return-status ~]
+      =/  error  (~(got by resp-obj) 'error')
+      [return-status `(so:dejs:format error)]
+  ::
   ::  Parse user input
   ::    A needle such as "foo=" in a haystack such as "this is foo=bar really"
   ::    Will return the value "bar"
@@ -43,6 +118,21 @@
         =/  resp-text  p.resp-obj
         =/  generated-text  (~(got by resp-text) 'generated_text')
         (so:dejs:format generated-text)
+  ::
+  ::  Decode json response from initial POST to Replicate
+  ::  (returns both get and cancel urls)
+  ::
+  ++  decode-replicate-post-resp
+    |=  =json
+    ^-  [@t @t]
+    ?>  ?=([%o *] json)
+      =/  resp-obj  p.json
+      =/  urls  (~(got by resp-obj) 'urls')
+      ?>  ?=([%o *] urls)
+        =/  urls-obj  p.urls
+        =/  get-url  (~(got by urls-obj) 'get')
+        =/  cancel-url  (~(got by urls-obj) 'cancel')
+        [(so:dejs:format get-url) (so:dejs:format cancel-url)]
   ::
   :: Custom extract-body to get mime data
   :: 
@@ -108,31 +198,64 @@
 =/  question  text.bird
 
 ::
-:: Build HTTP request for Hugging Face
+:: Build HTTP request for Replicate
 ::
 
 :: URL
-=/  url  (crip (weld (trip 'https://api-inference.huggingface.co/models/') (trip id.model)))
+=/  url  'https://api.replicate.com/v1/predictions'
 
-:: Headers (Auth key must be hidden!  ** DO NOT COMMIT **)
+:: Headers
 =/  type  ['Content-Type' 'application/json']
-=/  auth  ['Authorization' api-key.model]
+=/  auth  ['Authorization' (crip (weld "Token " (trip api-key.model)))]
 
 =/  headers  `(list [@t @t])`[type auth ~]
 
 :: Body
-=/  prompt  ['inputs' s+question]
-=/  temperature  ['temperature' n+'1.0']
-=/  tokens  ['max_new_tokens' n+'64']
+::=/  model-id  ['version' s+id.model]
+::=/  prompt  ['text' s+question]
+::=/  input  ['input' (pairs:enjs:format ~[prompt])]
+::=/  json-body  (crip (en-json:html (pairs:enjs:format ~[model-id input])))
 
-=/  params  (pairs:enjs:format ~[temperature tokens])
+:: something funny happening with input for the stable-diffusion model.  I don't think
+:: the json for the inputs is consistent across models.
+=/  model-id  ['version' s+id.model]
+::=/  input  ['text' s+question]
+::=/  input  ['input' s+question]
+::=/  prompt  ['input' s+question]
+=/  prompt  ['prompt' s+question]
+=/  input  ['input' (pairs:enjs:format ~[prompt])]
+=/  json-body  (crip (en-json:html (pairs:enjs:format ~[model-id input])))
 
-:: Depending on whether or not this is running before 
-:: or after the breaking json changes
-:: 413
-::  =/  json-body  (en:json:html (pairs:enjs:format ~[prompt ['parameters' params]]))
-:: 414+
-=/  json-body  (crip (en-json:html (pairs:enjs:format ~[prompt ['parameters' params]])))
+
+
+:: ==================================================================================
+::
+:: Build HTTP request for Hugging Face
+::
+
+:::: URL
+::=/  url  (crip (weld (trip 'https://api-inference.huggingface.co/models/') (trip id.model)))
+::
+:::: Headers (Auth key must be hidden!  ** DO NOT COMMIT **)
+::=/  type  ['Content-Type' 'application/json']
+::=/  auth  ['Authorization' api-key.model]
+::
+::=/  headers  `(list [@t @t])`[type auth ~]
+::
+:::: Body
+::::=/  prompt  ['inputs' s+question]
+::=/  prompt  ['prompt' s+question]
+::=/  temperature  ['temperature' n+'1.0']
+::=/  tokens  ['max_new_tokens' n+'64']
+::
+::=/  params  (pairs:enjs:format ~[temperature tokens])
+::
+:::: Depending on whether or not this is running before 
+:::: or after the breaking json changes
+:::: 413
+::::  =/  json-body  (en:json:html (pairs:enjs:format ~[prompt ['parameters' params]]))
+:::: 414+
+::=/  json-body  (crip (en-json:html (pairs:enjs:format ~[prompt ['parameters' params]])))
 
 
 :::: ===============================================================================
@@ -177,6 +300,9 @@
   
 ;<  ~                                 bind:m  (send-request request)
 ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response  
+
+~&  "Response is: {<resp>}"
+
 ?~  resp 
   :: response is [%done ~] from %cancel
   (pure:m !>(['http error - cancelled' vase.bird]))
@@ -186,14 +312,57 @@
 
 :: Extract status-code from xml
 =/  status-code  status-code.response-header.+>-.resp
-?.  =(status-code 200)
-  ::  Return error message from AI API
-  =/  msg  +:(need resp)
-  =/  file  +.msg
-  =/  xml  (cord +>+.file)
-  =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code) ": " (trip xml)))
-  (pure:m !>([return-msg vase.bird]))
+?.  |(=(status-code 200) =(status-code 201))
+    ~&  "Error - AI returned non 200/201 status code"
+    ::  All statuses except 200 & 201
+    =/  msg  +:(need resp)
+    =/  file  +.msg
+    =/  xml  (cord +>+.file)
+    =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code) ": " (trip xml)))
+    (pure:m !>([return-msg vase.bird]))
 
+  ::  Status code 200 or 201
+  ;<  resp-txt=@t  bind:m  (extract-body (need resp))
+  :: 413
+  ::=/  resp-json  (de:json:html resp-txt)  
+  :: 414+
+  =/  resp-json  (need (de-json:html resp-txt))
+  =/  replicate-urls  (decode-replicate-post-resp resp-json)
+  ~&  "get url: {<-.replicate-urls>}"
+  ~&  "cancel url: {<+.replicate-urls>}"
+  
+  :: A GET request to poll the get URL with, must be authenticated
+  =/  get-req=request:http
+    :*  method=%'GET'                                   :: 'GET'
+        url=-.replicate-urls                            :: url as cord
+        header-list=~[auth]                             :: send authentication header
+        ~                                               :: empty body
+    ==
+
+::  Poll the get url until we get a definitive result  
+;<  get-resp=vase       bind:m  (poll !>(get-req))
+=/  poll-resp  !<([@t (unit @t)] get-resp)
+
+?.  =(-.poll-resp 'succeeded')
+  =/  poll-err  ?~((need +.poll-resp) "unknown" (trip (need +.poll-resp)))
+  =/  poll-err-msg  (crip (weld "Error completing your AI request: " poll-err))
+  (pure:m !>([poll-err-msg vase.bird]))
+  ~&  "Retrieving from {<(need +.poll-resp)>}"
+
+:: Success!  We have a link, now download data and process according to type
+:: Send a GET request to the data URL (authenticated??)
+=/  data-req=request:http
+  :*  method=%'GET'                                   :: 'GET'
+      url=(need +.poll-resp)                          :: url as cord
+      header-list=~[auth]                             :: send authentication header
+      ~                                               :: empty body
+  ==
+
+;<  ~                                      bind:m  (send-request data-req)
+;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
+
+
+:: Status code 200
 ?-  type.model
   %conversation
 :: 
@@ -206,7 +375,7 @@
 ::
 :: Text/chat response
 ::
-;<  answer-txt=@t  bind:m  (extract-body (need resp))
+;<  answer-txt=@t  bind:m  (extract-body (need data-resp))
 
 :: 413
 ::=/  answer-json  (de:json:html answer-txt)  
@@ -221,7 +390,7 @@
  ::Image response (poke silo with returned data)
  ::
 
-;<  answer-img=mime  bind:m  (extract-mime-body (need resp))
+;<  answer-img=mime  bind:m  (extract-mime-body (need data-resp))
 
 :: Get S3 credentials and configuration
 ;<  cred=update  bind:m  (scry update `path`['gx' 's3-store' 'credentials' 'noun' ~])
