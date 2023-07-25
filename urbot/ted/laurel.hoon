@@ -11,15 +11,16 @@
     ^-  form:m
 
     =/  req  !<(request:http arg)
-    =/  counter  0      :: time-out after 20 seconds
+    =/  counter  0      :: time-out after 60 seconds
     =/  exit  'false'   :: exit loop on null http response, non-200 status code,
                         :: status=failed, completed, or cancelled
     =/  return  *[@t (unit @t)]
 
     |-
-    ?:  |((gth counter 20) =(exit 'true'))
+    ?:  |((gth counter 60) =(exit 'true'))
+      ?:  (gth counter 60)
+        (pure:m !>(['failed' `'timed out']))
       (pure:m !>(return))
-      ::`[%done !>(return)]
     ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req) 
     %=  $
       counter    +(counter)
@@ -58,7 +59,6 @@
   ::
   ::
   ::  Decode json response from GET request to Replicate
-  ::  (returns status, and output url is available)
   ::
   ++  decode-replicate-get-resp
     |=  =json
@@ -68,11 +68,14 @@
       =/  status  (~(got by resp-obj) 'status')
       =/  return-status  (so:dejs:format status)
       ?:  =(return-status 'succeeded')
-        =/  output  (~(got by resp-obj) 'output')
-        :: Success output is an array
+        =/  output  (~(got by resp-obj) 'output')  
+        :: output for images is a url as the single item in an array of cords 
+        :: output for text is an array of cords.
         ?>  ?=([%a *] output)
-          =/  return-data  (snag 0 p.output)
-          [return-status `(so:dejs:format return-data)]
+          =/  return-data  ((ar so):dejs:format output)          :: array to list of cords
+          =/  return-tape  `tape`(zing (turn return-data trip))  :: array to tape
+          =/  return-cord  (crip return-tape)
+          [return-status `return-cord]
       ?.  =(return-status 'failed')
         [return-status ~]
       =/  error  (~(got by resp-obj) 'error')
@@ -211,17 +214,8 @@
 =/  headers  `(list [@t @t])`[type auth ~]
 
 :: Body
-::=/  model-id  ['version' s+id.model]
-::=/  prompt  ['text' s+question]
-::=/  input  ['input' (pairs:enjs:format ~[prompt])]
-::=/  json-body  (crip (en-json:html (pairs:enjs:format ~[model-id input])))
-
-:: something funny happening with input for the stable-diffusion model.  I don't think
-:: the json for the inputs is consistent across models.
+::  Unfortunately input json structure is not consistent accross all models.
 =/  model-id  ['version' s+id.model]
-::=/  input  ['text' s+question]
-::=/  input  ['input' s+question]
-::=/  prompt  ['input' s+question]
 =/  prompt  ['prompt' s+question]
 =/  input  ['input' (pairs:enjs:format ~[prompt])]
 =/  json-body  (crip (en-json:html (pairs:enjs:format ~[model-id input])))
@@ -327,6 +321,7 @@
   ::=/  resp-json  (de:json:html resp-txt)  
   :: 414+
   =/  resp-json  (need (de-json:html resp-txt))
+
   =/  replicate-urls  (decode-replicate-post-resp resp-json)
   ~&  "get url: {<-.replicate-urls>}"
   ~&  "cancel url: {<+.replicate-urls>}"
@@ -349,17 +344,22 @@
   (pure:m !>([poll-err-msg vase.bird]))
   ~&  "Retrieving from {<(need +.poll-resp)>}"
 
-:: Success!  We have a link, now download data and process according to type
-:: Send a GET request to the data URL (authenticated??)
-=/  data-req=request:http
-  :*  method=%'GET'                                   :: 'GET'
-      url=(need +.poll-resp)                          :: url as cord
-      header-list=~[auth]                             :: send authentication header
-      ~                                               :: empty body
-  ==
 
-;<  ~                                      bind:m  (send-request data-req)
-;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
+:: ***** THIS BIT FOR IMAGES ONLY ******
+::    text is returned directly in the output
+::    field, rather than a link to the output.
+
+:::: Success!  We have a link, now download data and process according to type
+:::: Send a GET request to the data URL (authenticated??)
+::=/  data-req=request:http
+::  :*  method=%'GET'                                   :: 'GET'
+::      url=(need +.poll-resp)                          :: url as cord
+::      header-list=~[auth]                             :: send authentication header
+::      ~                                               :: empty body
+::  ==
+::
+::;<  ~                                      bind:m  (send-request data-req)
+::;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
 
 
 :: Status code 200
@@ -375,22 +375,33 @@
 ::
 :: Text/chat response
 ::
-;<  answer-txt=@t  bind:m  (extract-body (need data-resp))
+::;<  answer-txt=@t  bind:m  (extract-body (need data-resp))
+::
+:::: 413
+::::=/  answer-json  (de:json:html answer-txt)  
+:::: 414+
+::=/  answer-json  (need (de-json:html answer-txt))
+::=/  ai-answer  (decode-inference-text-gen-response answer-json)
+::
+::(pure:m !>([ai-answer vase.bird]))
 
-:: 413
-::=/  answer-json  (de:json:html answer-txt)  
-:: 414+
-=/  answer-json  (need (de-json:html answer-txt))
-=/  ai-answer  (decode-inference-text-gen-response answer-json)
-
-(pure:m !>([ai-answer vase.bird]))
-
+(pure:m !>([(need +.poll-resp) vase.bird]))
   %image-generation
  ::
  ::Image response (poke silo with returned data)
  ::
 
-;<  answer-img=mime  bind:m  (extract-mime-body (need data-resp))
+:: Download data from returned link via authenticated GET request
+=/  data-req=request:http
+  :*  method=%'GET'                                   :: 'GET'
+      url=(need +.poll-resp)                          :: url as cord
+      header-list=~[auth]                             :: send authentication header
+      ~                                               :: empty body
+  ==
+
+;<  ~                                      bind:m  (send-request data-req)
+;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
+;<  answer-img=mime                        bind:m  (extract-mime-body (need data-resp))
 
 :: Get S3 credentials and configuration
 ;<  cred=update  bind:m  (scry update `path`['gx' 's3-store' 'credentials' 'noun' ~])
