@@ -6,24 +6,33 @@
   ::  Polling loop
   ::
   ++  poll
-    |=  arg=vase
+    |=  [arg=vase timeout=@ud]
     =/  m  (strand ,vase)
     ^-  form:m
 
     =/  req  !<(request:http arg)
-    =/  counter  0      :: time-out after 60 seconds
-    =/  exit  'false'   :: exit loop on null http response, non-200 status code,
-                        :: status=failed, completed, or cancelled
+    =/  counter  1      :: time-out after 232 seconds (counter > 60)
+    =/  prev  0         :: for fibonacci sequence
+    =/  exit  'false'   :: exit on null http response, non-200 status code, status=failed, completed, or cancelled
     =/  return  *[@t (unit @t)]
 
+    :: Polling, with wait times between calls on a fibonacci sequence
+    :: would be good to allow user to add their own max time-out
     |-
-    ?:  |((gth counter 60) =(exit 'true'))
-      ?:  (gth counter 60)
+    ?:  |((gth counter timeout) =(exit 'true'))
+      ?:  (gth counter timeout)
         (pure:m !>(['failed' `'timed out']))
       (pure:m !>(return))
+
+    :: convert counter (use prev so as not to go over time) to seconds for timer
+    =/  seconds  (crip (weld "~s" (trip `@t`(scot %ud prev))))
+    =/  sleeper  `@dr`(slav %dr seconds)
+    ~&  "Polling replicate GET url - trying again in {<seconds>} seconds..."
+    ;<  ~                                 bind:m  (sleep sleeper)           :: poll on a fibonacci basis
     ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req) 
     %=  $
-      counter    +(counter)
+      prev       counter
+      counter    (add counter prev)
       return     poll-resp
       exit       ?:(|(=(-.poll-resp 'succeeded') =(-.poll-resp 'failed') =(-.poll-resp 'cancelled') =(-.poll-resp 'completed') =(-.poll-resp 'http-error')) 'true' 'false')
     ==
@@ -40,8 +49,6 @@
     
     ?~  resp 
        (pure:m ['http-error' ~])
-        ;<  our=@p     bind:m  get-our
-    ;<  now=@da    bind:m  get-time
         :: Extract status-code from xml
     =/  status-code  status-code.response-header.+>-.resp
     ?.  =(status-code 200)
@@ -53,7 +60,6 @@
     =/  resp-json  (need (de-json:html resp-txt))
     =/  response  (decode-replicate-get-resp resp-json)
     ?:  |(=(-.response 'starting') =(-.response 'processing'))
-      ;<  ~  bind:m  (sleep ~s1)
       (pure:m [-.response ~])
     (pure:m [-.response +.response])
   ::
@@ -137,6 +143,26 @@
         =/  cancel-url  (~(got by urls-obj) 'cancel')
         [(so:dejs:format get-url) (so:dejs:format cancel-url)]
   ::
+  ::  Build body of HTTP request to AI
+  ::
+  ++  build-request-body
+    |=  [model=inference-model question=@t]
+    ^-  @t
+    =/  model-id  ['version' s+id.model]
+    =/  prompt  ['prompt' s+question]
+  
+    :: At least two ways of specifying tokens, let's send them all and see what happens
+    :: hopefully non-functional input parameters will simply be ignored 
+    ?~  tokens.model
+        =/  input  ['input' (pairs:enjs:format ~[prompt])]
+        (crip (en-json:html (pairs:enjs:format ~[model-id input])))
+      =/  tokens  (numb:enjs:format +:(need tokens.model))
+      =/  max-tokens  ['max_tokens' tokens]
+      =/  max-new-tokens  ['max_new_tokens' tokens]
+      =/  max-length  ['max_length' tokens]
+      =/  tokens-input  ['input' (pairs:enjs:format ~[prompt max-tokens max-new-tokens max-length])]
+      (crip (en-json:html (pairs:enjs:format ~[model-id tokens-input])))
+  ::
   :: Custom extract-body to get mime data
   :: 
   ++  extract-mime-body
@@ -214,12 +240,7 @@
 =/  headers  `(list [@t @t])`[type auth ~]
 
 :: Body
-::  Unfortunately input json structure is not consistent accross all models.
-=/  model-id  ['version' s+id.model]
-=/  prompt  ['prompt' s+question]
-=/  input  ['input' (pairs:enjs:format ~[prompt])]
-=/  json-body  (crip (en-json:html (pairs:enjs:format ~[model-id input])))
-
+=/  json-body  (build-request-body [model question])
 
 
 :: ==================================================================================
@@ -294,8 +315,7 @@
   
 ;<  ~                                 bind:m  (send-request request)
 ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response  
-
-~&  "Response is: {<resp>}"
+~&  "[Laurel] Have AI response - processing..."
 
 ?~  resp 
   :: response is [%done ~] from %cancel
@@ -323,8 +343,8 @@
   =/  resp-json  (need (de-json:html resp-txt))
 
   =/  replicate-urls  (decode-replicate-post-resp resp-json)
-  ~&  "get url: {<-.replicate-urls>}"
-  ~&  "cancel url: {<+.replicate-urls>}"
+::  ~&  "get url: {<-.replicate-urls>}"
+::  ~&  "cancel url: {<+.replicate-urls>}"
   
   :: A GET request to poll the get URL with, must be authenticated
   =/  get-req=request:http
@@ -334,33 +354,15 @@
         ~                                               :: empty body
     ==
 
-::  Poll the get url until we get a definitive result  
-;<  get-resp=vase       bind:m  (poll !>(get-req))
+::  Poll the get url until we get a definitive result, set default timeout as 60seconds
+=/  timeout  ?~(timeout.model 60 +:(need timeout.model))  
+;<  get-resp=vase       bind:m  (poll [!>(get-req) timeout])
 =/  poll-resp  !<([@t (unit @t)] get-resp)
 
 ?.  =(-.poll-resp 'succeeded')
   =/  poll-err  ?~((need +.poll-resp) "unknown" (trip (need +.poll-resp)))
   =/  poll-err-msg  (crip (weld "Error completing your AI request: " poll-err))
   (pure:m !>([poll-err-msg vase.bird]))
-  ~&  "Retrieving from {<(need +.poll-resp)>}"
-
-
-:: ***** THIS BIT FOR IMAGES ONLY ******
-::    text is returned directly in the output
-::    field, rather than a link to the output.
-
-:::: Success!  We have a link, now download data and process according to type
-:::: Send a GET request to the data URL (authenticated??)
-::=/  data-req=request:http
-::  :*  method=%'GET'                                   :: 'GET'
-::      url=(need +.poll-resp)                          :: url as cord
-::      header-list=~[auth]                             :: send authentication header
-::      ~                                               :: empty body
-::  ==
-::
-::;<  ~                                      bind:m  (send-request data-req)
-::;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
-
 
 :: Status code 200
 ?-  type.model

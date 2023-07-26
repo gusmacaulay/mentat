@@ -13,5 +13,10 @@
       id=@t           :: "https://api-inference.huggingface.co/models/{id}"
       api-key=@t
       ::options=(list [@t @t])
+      :: optional options??
+      ::options=(unit (list [@t @t]))
+      timeout=(unit [%timeout @ud])
+      tokens=(unit [%tokens @ud])
+
   ==
 --

@@ -24,13 +24,17 @@ image generation an S3 bucket must be installed via Silo.  All generated images 
 
 Start a gato thread as follows:
 ```
-> :gato &add [<bot-name> [<desk> <thread-file>] !>([<bot-type> <model> <auth>])]
+> :gato &add [<bot-name> [<desk> <thread-file>] !>([<bot-type> <model> <auth> <timeout> <tokens>])]
 ```
+
+timeout and tokens are optional values, if you are not using them simply use ~
+* specify timeout, in seconds, as `[%timeout @ud] or ~  (default is 60s)
+* specify tokens (maximum output tokens) as `[%tokens @ud] or ~ (default is the model's default)
 
 Examples (assuming the laurel.hoon thread file is in a desk called laurel)
 ```
-> :gato &add ['Talktome' [%laurel %laurel] !>([%text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'])]
-> :gato &add ['DrawSomething' [%laurel %laurel] !>([%image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'])]
+> :gato &add ['Talktome' [%laurel %laurel] !>([%text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `[%tokens 1.000])]
+> :gato &add ['DrawSomething' [%laurel %laurel] !>([%image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `[%timeout 120] ~)]
 ```
 
 See https://github.com/midsum-salrux/gato For more instructions on %gato.
