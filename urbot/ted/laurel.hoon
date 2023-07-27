@@ -9,7 +9,6 @@
     |=  [arg=vase timeout=@ud]
     =/  m  (strand ,vase)
     ^-  form:m
-
     =/  req  !<(request:http arg)
     =/  counter  1      :: time-out after 232 seconds (counter > 60)
     =/  prev  0         :: for fibonacci sequence
@@ -55,9 +54,9 @@
       (pure:m ['http-error' `(crip (weld "HTTP error - status-code: " (trip status-code)))])
     ;<  resp-txt=@t  bind:m  (extract-body (need resp))
     :: 413
-    ::=/  resp-json  (de:json:html resp-txt)  
+    =/  resp-json  (need (de:json:html resp-txt))  
     :: 414+
-    =/  resp-json  (need (de-json:html resp-txt))
+    ::=/  resp-json  (need (de-json:html resp-txt))
     =/  response  (decode-replicate-get-resp resp-json)
     ?:  |(=(-.response 'starting') =(-.response 'processing'))
       (pure:m [-.response ~])
@@ -155,13 +154,19 @@
     :: hopefully non-functional input parameters will simply be ignored 
     ?~  tokens.model
         =/  input  ['input' (pairs:enjs:format ~[prompt])]
-        (crip (en-json:html (pairs:enjs:format ~[model-id input])))
+        :: 414
+        ::(crip (en-json:html (pairs:enjs:format ~[model-id input])))
+        :: 413
+        (en:json:html (pairs:enjs:format ~[model-id input]))
       =/  tokens  (numb:enjs:format +:(need tokens.model))
       =/  max-tokens  ['max_tokens' tokens]
       =/  max-new-tokens  ['max_new_tokens' tokens]
       =/  max-length  ['max_length' tokens]
       =/  tokens-input  ['input' (pairs:enjs:format ~[prompt max-tokens max-new-tokens max-length])]
-      (crip (en-json:html (pairs:enjs:format ~[model-id tokens-input])))
+      :: 414
+      ::(crip (en-json:html (pairs:enjs:format ~[model-id tokens-input])))
+      :: 413
+      (en:json:html (pairs:enjs:format ~[model-id tokens-input]))
   ::
   :: Custom extract-body to get mime data
   :: 
@@ -242,7 +247,6 @@
 :: Body
 =/  json-body  (build-request-body [model question])
 
-
 :: ==================================================================================
 ::
 :: Build HTTP request for Hugging Face
@@ -268,9 +272,9 @@
 :::: Depending on whether or not this is running before 
 :::: or after the breaking json changes
 :::: 413
-::::  =/  json-body  (en:json:html (pairs:enjs:format ~[prompt ['parameters' params]]))
+::  =/  json-body  (en:json:html (pairs:enjs:format ~[prompt ['parameters' params]]))
 :::: 414+
-::=/  json-body  (crip (en-json:html (pairs:enjs:format ~[prompt ['parameters' params]])))
+::::=/  json-body  (crip (en-json:html (pairs:enjs:format ~[prompt ['parameters' params]])))
 
 
 :::: ===============================================================================
@@ -297,9 +301,9 @@
 :: Depending on whether or not this is running before 
 :: or after the breaking json changes
 :::: 413
-::::  =/  json-body  (en:json:html o+(malt (limo ~[model prompt temperature tokens])))
+::  =/  json-body  (en:json:html o+(malt (limo ~[model prompt temperature tokens])))
 :: 414+
-::=/  json-body  (crip (en-json:html o+(malt (limo ~[model prompt temperature tokens]))))
+::::=/  json-body  (crip (en-json:html o+(malt (limo ~[model prompt temperature tokens]))))
 ::
 :::: =====================================================================================
 
@@ -327,7 +331,7 @@
 :: Extract status-code from xml
 =/  status-code  status-code.response-header.+>-.resp
 ?.  |(=(status-code 200) =(status-code 201))
-    ~&  "Error - AI returned non 200/201 status code"
+    ~&  "[Laurel] error - AI returned non 200/201 status code"
     ::  All statuses except 200 & 201
     =/  msg  +:(need resp)
     =/  file  +.msg
@@ -338,14 +342,12 @@
   ::  Status code 200 or 201
   ;<  resp-txt=@t  bind:m  (extract-body (need resp))
   :: 413
-  ::=/  resp-json  (de:json:html resp-txt)  
+  =/  resp-json  (need (de:json:html resp-txt))  
   :: 414+
-  =/  resp-json  (need (de-json:html resp-txt))
+  ::=/  resp-json  (need (de-json:html resp-txt))
 
   =/  replicate-urls  (decode-replicate-post-resp resp-json)
-::  ~&  "get url: {<-.replicate-urls>}"
-::  ~&  "cancel url: {<+.replicate-urls>}"
-  
+
   :: A GET request to poll the get URL with, must be authenticated
   =/  get-req=request:http
     :*  method=%'GET'                                   :: 'GET'
@@ -377,33 +379,13 @@
 ::
 :: Text/chat response
 ::
-::;<  answer-txt=@t  bind:m  (extract-body (need data-resp))
-::
-:::: 413
-::::=/  answer-json  (de:json:html answer-txt)  
-:::: 414+
-::=/  answer-json  (need (de-json:html answer-txt))
-::=/  ai-answer  (decode-inference-text-gen-response answer-json)
-::
-::(pure:m !>([ai-answer vase.bird]))
 
 (pure:m !>([(need +.poll-resp) vase.bird]))
+
   %image-generation
  ::
  ::Image response (poke silo with returned data)
  ::
-
-:: Download data from returned link via authenticated GET request
-=/  data-req=request:http
-  :*  method=%'GET'                                   :: 'GET'
-      url=(need +.poll-resp)                          :: url as cord
-      header-list=~[auth]                             :: send authentication header
-      ~                                               :: empty body
-  ==
-
-;<  ~                                      bind:m  (send-request data-req)
-;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
-;<  answer-img=mime                        bind:m  (extract-mime-body (need data-resp))
 
 :: Get S3 credentials and configuration
 ;<  cred=update  bind:m  (scry update `path`['gx' 's3-store' 'credentials' 'noun' ~])
@@ -418,8 +400,28 @@
 =/  bucket  current-bucket.configuration.cnfg
 =/  region  region.configuration.cnfg
 
+:: No S3 credentials, return error message and replicate link (available 24hrs only)
+?:  |(=(endpoint '') =(access-id '') =(secret '') =(bucket '') =(region ''))
+  =/  s3-unavailable-msg  (crip (weld "No S3 access - temporary link: " (trip (need +.poll-resp))))
+  (pure:m !>([`reply`[%story [[[%image (need +.poll-resp) 300 300 'laurel generated image'] ~] [[s3-unavailable-msg] ~]]] vase.bird]))
+
+:: Have S3 credentials, Ddownload data from returned link via authenticated GET request
+=/  data-req=request:http
+  :*  method=%'GET'                                   :: 'GET'
+      url=(need +.poll-resp)                          :: url as cord
+      header-list=~[auth]                             :: send authentication header
+      ~                                               :: empty body
+  ==
+
+;<  ~                                      bind:m  (send-request data-req)
+;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
+?~  data-resp
+  (pure:m !>(['[Laurel] error - cannot download generated AI response' vase.bird]))
+
+;<  answer-img=mime                        bind:m  (extract-mime-body (need data-resp))
+
 =/  host  (crip (scan (trip endpoint) ;~(pfix (jest 'https://') (star prn))))  :: e.g syd1.digitaloceanspaces.com
-=/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') ".jpg")
+=/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') ".jpg")               :: may not be .jpg ...
 =/  s3-url  (crip ;:(weld "https://" (trip host) "/" (trip bucket) "/" filename))
 
 :: Get content-length, convert to cord to go in header
@@ -428,9 +430,6 @@
 
 :: Send as application/octet-stream, or jpeg for images?
 =/  content-type  'application/octet-stream'
-::=/  content-type  'image/jpeg'
-::=/  content-type  'text/plain'
-
 
 ::  Set up aws (lib/aws.hoon)
 =/  aws-client  ~(. aws [region 's3' secret access-id now])

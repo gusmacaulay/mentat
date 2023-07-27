@@ -11,13 +11,15 @@ https://replicate.com/
 
 Create a new desk, copy in the files from this repository, and
 install in the usual way.  There is no front-end, so it won't 
-appear in Landscape.
+appear in Landscape (`>|install our %laurel` is unnecessary and won't work).
 
 
 ### Dependencies
 
 Laurel requires that you have already installed %gato, and for
 image generation an S3 bucket must be installed via Silo.  All generated images will be stored in your default S3 bucket, made public, and displayed in the group chat where your bot is operating. 
+
+If you don't have an S3 bucket set up, images will still display, however they are temporary images stored on the replicate.com server, and will be unavailable after 24 hours.
 
 
 ### Starting a chatbot
