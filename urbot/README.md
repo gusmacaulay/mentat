@@ -69,3 +69,8 @@ In a Group chat access the chatbot like so:
 If you want a chatbot that only answers your questions this can be changed at line 195 in ted/laurel.hoon.
 2. Due to breaking changes in JSON parsing with 413 I have included the code for 413 and 414+,
 comment out whichever is unnecessary.
+
+
+####  Thanks:
+
+Thanks to ?? for providing the S3 hoon code that allows upload and display of images.

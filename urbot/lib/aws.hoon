@@ -1,5 +1,3 @@
-:: From ~nocsyx-lassul
-::  https://github.com/arthyn/silo/blob/backend2/desk/lib/aws.hoon
 =,  hmac:crypto
 |_  [reg=@t op=@t secret=@t key=@t now=@da]
 +$  purl  purl:eyre

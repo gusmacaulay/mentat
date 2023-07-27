@@ -1,0 +1,9 @@
+:~  title+'laurel'
+    info+'The renaissance man of chatbots'
+    color+0x4f.46e7
+    glob-ames+[~zod 0v0]
+    base+'laurel'
+    version+[0 0 1]
+    license+''
+    website+'https://gitlab.com/thuser/urbot'
+==
