@@ -9,9 +9,7 @@ https://replicate.com/
 
 ### Installation
 
-Create a new desk, copy in the files from this repository, and
-install in the usual way.  There is no front-end, so it won't 
-appear in Landscape (`>|install our %laurel` is unnecessary and won't work).
+Create a new desk, copy in the files from this repository, and install in the usual way.  There is no front-end, so the landscape tile leads nowhere.
 
 
 ### Dependencies
@@ -73,4 +71,4 @@ comment out whichever is unnecessary.
 
 ####  Thanks:
 
-Thanks to ?? for providing the S3 hoon code that allows upload and display of images.
+Thanks to ~nocsyx-lassul for providing the S3 hoon code that allows upload and display of images.

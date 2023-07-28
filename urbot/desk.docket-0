@@ -1,9 +1,10 @@
 :~  title+'laurel'
     info+'The renaissance man of chatbots'
-    color+0x4f.46e7
-    glob-ames+[~zod 0v0]
+    color+0xc.baa6
+    glob-ames+[~sipnem-davdyl-wolfun-solnym 0v0]
     base+'laurel'
-    version+[0 0 1]
-    license+''
+    version+[0 1 0]
+    license+'GPLv3'
+    image+'https://wolfun.syd1.digitaloceanspaces.com/laurel%20wreath.png'
     website+'https://gitlab.com/thuser/urbot'
 ==
