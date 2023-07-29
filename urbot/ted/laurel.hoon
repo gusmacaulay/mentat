@@ -405,11 +405,12 @@
   =/  s3-unavailable-msg  (crip (weld "No S3 access - temporary link: " (trip (need +.poll-resp))))
   (pure:m !>([`reply`[%story [[[%image (need +.poll-resp) 300 300 'laurel generated image'] ~] [[s3-unavailable-msg] ~]]] vase.bird]))
 
-:: Have S3 credentials, Ddownload data from returned link via authenticated GET request
+:: Have S3 credentials, download data from returned link via UNauthenticated GET request
 =/  data-req=request:http
   :*  method=%'GET'                                   :: 'GET'
       url=(need +.poll-resp)                          :: url as cord
-      header-list=~[auth]                             :: send authentication header
+      ::header-list=~[auth]                             :: send authentication header
+      header-list=~
       ~                                               :: empty body
   ==
 
@@ -420,8 +421,13 @@
 
 ;<  answer-img=mime                        bind:m  (extract-mime-body (need data-resp))
 
+=/  ext-idx  (need (find "." (flop (trip (need +.poll-resp)))))
+=/  file-ext  (flop (scag ext-idx (flop (trip (need +.poll-resp)))))
+
 =/  host  (crip (scan (trip endpoint) ;~(pfix (jest 'https://') (star prn))))  :: e.g syd1.digitaloceanspaces.com
-=/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') ".jpg")               :: may not be .jpg ...
+::=/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') ".jpg")               :: may not be .jpg ...
+=/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') "." file-ext)           :: use file type of returned image
+
 =/  s3-url  (crip ;:(weld "https://" (trip host) "/" (trip bucket) "/" filename))
 
 :: Get content-length, convert to cord to go in header
