@@ -64,7 +64,7 @@ In a Group chat access the chatbot like so:
 
 ####  Other notes: 
 1. The current setup answers questions from any ship that can access your group chat.
-If you want a chatbot that only answers your questions this can be changed at line 195 in ted/laurel.hoon.
+If you want a chatbot that only answers your questions this can be changed at line 17 in ted/laurel.hoon.
 2. Due to breaking changes in JSON parsing with 413 I have included the code for 413 and 414+,
 comment out whichever is unnecessary.
 
