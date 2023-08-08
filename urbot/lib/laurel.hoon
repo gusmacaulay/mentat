@@ -75,6 +75,10 @@
         =/  output  (~(got by resp-obj) 'output')  
         :: output for images is a url as the single item in an array of cords 
         :: output for text is an array of cords.
+
+        :: test here, some responses are a single string, others are an array
+        :: need to return either.
+
         ?>  ?=([%a *] output)
           =/  return-data  ((ar so):dejs:format output)          :: array to list of cords
           =/  return-tape  `tape`(zing (turn return-data trip))  :: array to tape
@@ -245,43 +249,25 @@
       (pure:m !>([%fail `'[Laurel] error -cannot download generated AI response' ~]))
     :: Response ok
     ;<  image=mime                       bind:m  (extract-mime-body (need resp))
-    (pure:m !>([%ok ~ `image]))
+    :: return file extension in the @t
+    =/  ext-idx  (need (find "." (flop (trip url))))
+    =/  file-ext  (crip (flop (scag ext-idx (flop (trip url)))))
+    (pure:m !>([%ok `file-ext `image]))
 ::
 ::  Download image data from supplied link, upload to S3
 ::  and return S3 link for chat message
 ::
   ++  s3-upload
-    |=  [url=@t auth=[@t @t] bucket=@t region=@t secret=@t access-id=@t endpoint=@t]
+    ::|=  [url=@t auth=[@t @t] bucket=@t region=@t secret=@t access-id=@t endpoint=@t]
+    |=  [answer-img=mime file-ext=@t auth=[@t @t] bucket=@t region=@t secret=@t access-id=@t endpoint=@t]
     =/  m  (strand ,vase)                                 :: vase is [@tas @t] %error or %ok + msg/url
     ^-  form:m
     
     ;<  now=@da    bind:m  get-time
-
-      :: Have S3 credentials, download data from returned link via UNauthenticated GET request
-    =/  data-req=request:http
-      :*  method=%'GET'                                   :: 'GET'
-          url=url                                         :: url as cord
-          ::header-list=~[auth]                             :: send authentication header
-          header-list=~
-          ~                                               :: empty body
-      ==
-    
-    ;<  ~                                      bind:m  (send-request data-req)
-    ;<  data-resp=(unit client-response:iris)  bind:m  take-maybe-response  
-
-    ?~  data-resp
-      (pure:m !>([%error '[Laurel] error - cannot download generated AI response']))
-    ?.  |(=(status-code.response-header.+>-.data-resp 200) =(status-code.response-header.+>-.data-resp 201))
-      (pure:m !>([%error '[Laurel] error - cannot download generated AI response']))
-  
-    ;<  answer-img=mime                        bind:m  (extract-mime-body (need data-resp))
-    
-    =/  ext-idx  (need (find "." (flop (trip url))))
-    =/  file-ext  (flop (scag ext-idx (flop (trip url))))
     
     =/  host  (crip (scan (trip endpoint) ;~(pfix (jest 'https://') (star prn))))  :: e.g syd1.digitaloceanspaces.com
-    =/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') "." file-ext)         :: use file type of returned image
-    
+    =/  filename  ;:(weld "img-" (snap (scow %da now) 0 '-') "." (trip file-ext))         :: use file type of returned image
+
     =/  s3-url  (crip ;:(weld "https://" (trip host) "/" (trip bucket) "/" filename))
     
     :: Get content-length, convert to cord to go in header
