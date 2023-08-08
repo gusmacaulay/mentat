@@ -24,17 +24,19 @@ If you don't have an S3 bucket set up, images will still display, however they a
 
 Start a gato thread as follows:
 ```
-> :gato &add [<bot-name> [<desk> <thread-file>] !>([<bot-type> <model> <auth> <timeout> <tokens>])]
+> :gato &add [<bot-name> [<desk> <thread-file>] !>([<bot-view> <bot-type> <model> <auth> <timeout> <tokens>])]
 ```
 
 timeout and tokens are optional values, if you are not using them simply use ~
 * specify timeout, in seconds, as `[%timeout @ud] or ~  (default is 60s)
 * specify tokens (maximum output tokens) as `[%tokens @ud] or ~ (default is the model's default)
 
+%public models respond to anyone, %private models only respond to the ship on which they're running.
+
 Examples (assuming the laurel.hoon thread file is in a desk called laurel)
 ```
-> :gato &add ['Talktome' [%laurel %laurel] !>([%text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `[%tokens 1.000])]
-> :gato &add ['DrawSomething' [%laurel %laurel] !>([%image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `[%timeout 120] ~)]
+> :gato &add ['Talktome' [%laurel %laurel] !>([%public %text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `[%tokens 1.000])]
+> :gato &add ['DrawSomething' [%laurel %laurel] !>([%private %image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `[%timeout 120] ~)]
 ```
 
 See https://github.com/midsum-salrux/gato For more instructions on %gato.
@@ -53,6 +55,10 @@ See https://github.com/midsum-salrux/gato For more instructions on %gato.
 * Recommended: https://replicate.com/stability-ai/stablelm-tuned-alpha-7b
 * Most of the text models should work: https://replicate.com/collections/language-models
 
+#### Code Generation
+
+* Some code generation models such as https://replicate.com/lucataco/replit-code-v1-3b will run when set up as a text generation model.
+
 
 ### Using the chatbot
 
@@ -63,10 +69,11 @@ In a Group chat access the chatbot like so:
 ```
 
 ####  Other notes: 
-1. The current setup answers questions from any ship that can access your group chat.
-If you want a chatbot that only answers your questions this can be changed at line 17 in ted/laurel.hoon.
-2. Due to breaking changes in JSON parsing with 413 I have included the code for 413 and 414+,
-comment out whichever is unnecessary.
+
+1. A %public chatbot will be available in **any** group chat to which your ship has access.
+Public chatbots are ideally suited to run off their own moon, which has access to the group chats that are
+relevant to it.
+2. A %private chatbot will only answer questions from you, and is more suited to running on your main ship.
 
 
 ####  Thanks:

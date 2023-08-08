@@ -1,6 +1,4 @@
-::/-  spider, *gato, *s3, *laurel
 /-  spider, *laurel
-::/+  *strandio, aws
 /+  *strandio, aws
 =,  strand=strand:spider
 |%  
@@ -74,16 +72,18 @@
       ?:  =(return-status 'succeeded')
         =/  output  (~(got by resp-obj) 'output')  
         :: output for images is a url as the single item in an array of cords 
-        :: output for text is an array of cords.
-
-        :: test here, some responses are a single string, others are an array
-        :: need to return either.
-
-        ?>  ?=([%a *] output)
-          =/  return-data  ((ar so):dejs:format output)          :: array to list of cords
-          =/  return-tape  `tape`(zing (turn return-data trip))  :: array to tape
-          =/  return-cord  (crip return-tape)
-          [return-status `return-cord]
+        :: output for text is either an array of cords, or a single cord (json string)
+        ?+  -.output  ['failed: ' `'json parsing error']
+            %a
+          ?>  ?=([%a *] output)
+            =/  return-data  ((ar so):dejs:format output)          :: array to list of cords
+            =/  return-tape  `tape`(zing (turn return-data trip))  :: array to tape
+            =/  return-cord  (crip return-tape)
+            [return-status `return-cord]
+            %s
+          ?>  ?=([%s *] output)
+             [return-status `(so:dejs:format output)]              :: single string to cord
+        ==  
       ?.  =(return-status 'failed')
         [return-status ~]
       =/  error  (~(got by resp-obj) 'error')

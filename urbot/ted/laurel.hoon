@@ -12,11 +12,12 @@
 =/  msg-origin=@p  author.memo.bird
 ;<  our-ship=@p   bind:m  get-our
 
-:::: Keep these three lines to accept only messages from our
-:::: own ship.  Delete for public access to the chatbot
-::?.  =(msg-origin our-ship)
-::  ~&  "Message origin not our ship - ignoring"
-::  !!
+:: Distinguish between public and private models
+:: messages from other ships should be ignored if the
+:: model is %private
+?:  &(=(view.model %private) ?!(=(msg-origin our-ship)))
+  ::~&  "Message origin not our ship - ignoring"
+  !!
 
 =/  question  text.bird
 
@@ -121,6 +122,7 @@
 =/  status-code  status-code.response-header.+>-.resp
 ?.  |(=(status-code 200) =(status-code 201))
     ~&  "[Laurel] error - AI returned non 200/201 status code"
+    ~&  +:(need resp)
     ::  All statuses except 200 & 201
     =/  msg  +:(need resp)
     =/  file  +.msg
