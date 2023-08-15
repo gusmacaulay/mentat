@@ -14,8 +14,7 @@ Create a new desk, copy in the files from this repository, and install in the us
 
 ### Dependencies
 
-Laurel requires that you have already installed %gato, and for
-image generation an S3 bucket must be installed via Silo.  All generated images will be stored in your default S3 bucket, made public, and displayed in the group chat where your bot is operating. 
+Laurel requires that you have already installed %gato, and for long term image generation an S3 bucket must be installed via Silo.  All generated images will be stored in your default S3 bucket, made public, and displayed in the group chat where your bot is operating.
 
 If you don't have an S3 bucket set up, images will still display, however they are temporary images stored on the replicate.com server, and will be unavailable after 24 hours.
 
@@ -27,11 +26,14 @@ Start a gato thread as follows:
 > :gato &add [<bot-name> [<desk> <thread-file>] !>([<bot-view> <bot-type> <model> <auth> <timeout> <tokens>])]
 ```
 
+Models may be specified as either public or private.
+* %public models respond to anyone, %private models only respond to the ship on which they're running.
+
+Valid model types are `%text-generation`, `%image-generation`, and `%conversation`
+
 timeout and tokens are optional values, if you are not using them simply use ~
 * specify timeout, in seconds, as `[%timeout @ud] or ~  (default is 60s)
 * specify tokens (maximum output tokens) as `[%tokens @ud] or ~ (default is the model's default)
-
-%public models respond to anyone, %private models only respond to the ship on which they're running.
 
 Examples (assuming the laurel.hoon thread file is in a desk called laurel)
 ```
@@ -59,13 +61,20 @@ See https://github.com/midsum-salrux/gato For more instructions on %gato.
 
 * Some code generation models such as https://replicate.com/lucataco/replit-code-v1-3b will run when set up as a text generation model.
 
+#### Chat Mode
+
+* You can use chat models such as https://replicate.com/a16z-infra/llama-2-13b-chat
+* To clear a conversation and start afresh use the clear command in your Groups chat
+```
+/Chatwithme clear
+```
 
 ### Using the chatbot
 
-In a Group chat access the chatbot like so:
+In a Groups chat access the chatbot like so:
 ```
-> /Talktome Once upon a time on an Urbit ship...
-> /DrawSomething A photorealistic image of an Urbit ship
+/Talktome Once upon a time on an Urbit ship...
+/DrawSomething A photorealistic image of an Urbit ship
 ```
 
 ####  Other notes: 

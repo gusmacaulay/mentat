@@ -7,25 +7,37 @@
 ^-  form:m
 =/  =bird  !<(bird arg)
 
+::
 :: Set up the model
+::
 =/  model=inference-model  !<(inference-model vase.bird)
 =/  msg-origin=@p  author.memo.bird
-;<  our-ship=@p   bind:m  get-our
+;<  our-ship=@p    bind:m  get-our
 
-:: Distinguish between public and private models
-:: messages from other ships should be ignored if the
-:: model is %private
+:: Ignore messages from other ships if set to %private
 ?:  &(=(view.model %private) ?!(=(msg-origin our-ship)))
-  ::~&  "Message origin not our ship - ignoring"
+  ~&  "Message origin not our ship - ignoring"
   !!
 
 =/  question  text.bird
 
 ::
+:: Clear conversation if requested
+::
+?:  &(=(question "clear") =(type.model %conversation))
+  ;<  clear-key=@t  bind:m  (generate-conv-key bird)
+  ;<  ~             bind:m  (poke-our %laurel [%clear !>(clear-key)])
+  (pure:m !>(['** conversation cleared **' vase.bird]))
+  
+::
+:: Build conversation for request to %conversation model if necessary
+::
+;<  qst-vase=vase  bind:m  ?:(=(type.model %conversation) (build-conversation bird) (pure:m !>(question)))
+=/  qst  !<(@t qst-vase)
+
+::
 :: Build HTTP request for Replicate
 ::
-
-:: URL
 =/  url  'https://api.replicate.com/v1/predictions'
 
 :: Headers
@@ -35,7 +47,7 @@
 =/  headers  `(list [@t @t])`[type auth ~]
 
 :: Body
-=/  json-body  (build-request-body [model question])
+=/  json-body  (build-request-body [model qst])
 
 :: ==================================================================================
 ::
@@ -122,12 +134,7 @@
 =/  status-code  status-code.response-header.+>-.resp
 ?.  |(=(status-code 200) =(status-code 201))
     ~&  "[Laurel] error - AI returned non 200/201 status code"
-    ~&  +:(need resp)
-    ::  All statuses except 200 & 201
-    =/  msg  +:(need resp)
-    =/  file  +.msg
-    =/  xml  (cord +>+.file)
-    =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code) ": " (trip xml)))
+    =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code)))
     (pure:m !>([return-msg vase.bird]))
 
   ::  Status code 200 or 201
@@ -161,10 +168,16 @@
 ?-  type.model
   %conversation
 :: 
-:: Conversation response (to be implemented)
+:: Conversation response
 ::
 
-(pure:m !>(['Sorry, conversation models have not yet been implemented.' vase.bird]))
+:: poke update to conversation to app
+:: update with both question asked and answer returned
+;<  conv-key=@t  bind:m  (generate-conv-key bird)
+;<  ~            bind:m  (poke-our %laurel [%add !>([conv-key [%user qst]])])
+;<  ~            bind:m  (poke-our %laurel [%add !>([conv-key [%ai (need +.poll-resp)]])])
+
+(pure:m !>([(need +.poll-resp) vase.bird]))
 
   %text-generation
 ::

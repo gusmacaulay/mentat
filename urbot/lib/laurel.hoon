@@ -1,4 +1,4 @@
-/-  spider, *laurel
+/-  spider, *gato, *laurel
 /+  *strandio, aws
 =,  strand=strand:spider
 |%  
@@ -145,6 +145,42 @@
         =/  cancel-url  (~(got by urls-obj) 'cancel')
         [(so:dejs:format get-url) (so:dejs:format cancel-url)]
   ::
+  ::  Generate conversation key
+  ::  (e.g. '~zod/laurel-chat ')
+  ::
+  ++  generate-conv-key
+    |=  =bird
+    =/  m  (strand ,@t)
+    ^-  form:m
+    ;<  our=@p    bind:m  get-our
+    =/  our-tape  (scow %p our)
+
+    :: Type checking for a plain @t, fails with code, highlights, embeds, etc.
+    ?>  ?=(@t +>-.content.memo.bird)  
+      =/  full-text  (trip +>-.content.memo.bird)
+      =/  key  (crip (weld our-tape (scag (need (find (trip text.bird) full-text)) full-text))) 
+      (pure:m key)
+  ::
+  ::  Build conversation cord for conversation models
+  ::
+  ++  build-conversation
+    |=  =bird
+    =/  m  (strand ,vase)
+    ^-  form:m
+
+    ;<  key=@t              bind:m  (generate-conv-key bird)
+    ;<  has-conv=?          bind:m  (scry ? `path`['gx' 'laurel' 'has' key 'noun' ~])  :: check for conversation existence
+
+    ?.  has-conv
+      :: no prior conversation, returned annotated question
+      (pure:m !>((crip ;:(weld "[INST] " (trip text.bird) " /[INST]"))))
+    :: weld new question to all previous conversation
+    ;<  convo=conversation  bind:m  (scry conversation `path`['gx' 'laurel' 'conversation' key 'noun' ~])
+    =/  conv-parts  `(list tape)`(turn convo |=([i=@t j=@t] (trip j)))  :: return text without participants
+    =/  conv-tape  `tape`(zing conv-parts)
+    =/  conv-upd  (crip ;:(weld conv-tape "[INST] " (trip text.bird) " /[INST]"))
+    (pure:m !>(conv-upd))
+  ::
   ::  Build body of HTTP request to AI
   ::
   ++  build-request-body
@@ -153,7 +189,7 @@
 
     =/  model-id  ['version' s+id.model]
     =/  prompt  ['prompt' s+question]
-  
+
     :: At least two ways of specifying tokens, let's send them all and see what happens
     :: hopefully non-functional input parameters will simply be ignored 
     ?~  tokens.model
