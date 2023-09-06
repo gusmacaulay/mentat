@@ -1,5 +1,6 @@
-/-  spider, *gato, *laurel
-/+  *strandio, aws
+/-  spider, *gato, *mentat
+/-  d=diary, g=groups, ha=hark :: not sure which of these we'll need
+/+  *strandio, aws, regex
 =,  strand=strand:spider
 |%  
   ++  poll
@@ -145,8 +146,194 @@
         =/  cancel-url  (~(got by urls-obj) 'cancel')
         [(so:dejs:format get-url) (so:dejs:format cancel-url)]
   ::
+  ::  Decode json returned from the LLM
+  ::  which should specify a notebook and
+  ::  some data to add to it/create it with
+  ::
+  ++  decode-generated-notebook
+    |=  =json
+    ^-  [@p @tas @tas time @t]              ::  ship, channel, action id(timestamp), text
+    ?>  ?=([%o *] json)
+      =/  resp-obj  p.json
+      ~&  "resp-obj {<resp-obj>}"
+      =/  data  (so:dejs:format (~(got by resp-obj) 'data'))
+      ~&  "data {<data>}"
+      =/  action  `@tas`(so:dejs:format (~(got by resp-obj) 'action'))
+      ~&  "action {<action>}"
+      ::=/  id-text  (so:dejs:format (~(got by resp-obj) 'notebook'))
+      =/  id-text  (~(got by resp-obj) 'notebook')
+      ~&  "id-text {<id-text>}"
+      ?~  id-text
+        ::  No notebook id, therefore return as an %add regardless of passed in action
+        ~&  "returning an %add"
+        [*ship *@tas %add *time data]  
+      ::  Parse passed in id to get ship, channel and timestamp
+      =/  id  (parse-id (so:dejs:format id-text))
+      ~&  "decode-generated-notebook: {<[-.id +<.id action +>.id data]>}"
+      [-.id +<.id action +>.id data]
+  ::
+  ::  Parse the LLM text version of the notebook id
+  ::  into something useful
+  ::
+  ++  parse-id
+    |=  text=@t
+    ^-  [@p @tas time]
+    :: format ~let-go/test-notebook/note/9187369876132424
+    :: just convert to tape and pull apart between "/"
+    =/  txt  (trip text)
+    =/  shp=@p  (need (slaw %p (crip (scag (need (find "/" txt)) txt))))
+    =/  rm-txt-1  (oust [0 (add 1 (need (find "/" txt)))] txt)
+    =/  channel=@tas  (crip (scag (need (find "/" rm-txt-1)) rm-txt-1))
+    :: use json parsing to extract unformatted number as a date
+    ::`@da`(ni:dejs:format n+'170141184506385861578430265978091732992')
+    =/  id-cord  (crip (flop (scag (need (find "/" (flop txt))) (flop txt))))
+    =/  id=@da  `@da`(ni:dejs:format n+id-cord)
+    [shp channel id]
+  ::
+  ::  Scry for note data and append it to the user's question so that
+  ::  the LLM can comment on it or edit it. i.e. add to context.
+  ::
+  ++  append-note
+    |=  [query=@t note-id=@t]
+    =/  m  (strand ,vase)
+    ^-  form:m
+
+    :: ASM - fix this, we can use parse-id above to do this more simply.
+
+    :: note-id will be: ~let/test-notebook/note/170141184506391138791970685596915990528
+    :: the number is a cord version of a date value represented as @ud (use json parsing to fix)
+
+    =/  id-num-tp  `tape`(flop (swag [0 (need (find "/" (flop (trip note-id))))] (flop (trip note-id))))  
+    =/  id-num  `tape`(scow %ud (ni:dejs:format n+(crip id-num-tp)))            :: e.g. '170.141.184.506.391.138.791.970.685.596.915.990.528'
+
+    =/  note-id-rgx  (run:regex "~[a-z,-]+/[a-z,0-9,-]+/note" (trip note-id))
+    =/  note-id-cleaned  q.->+:(need note-id-rgx)                               :: e.g ~let/test-notebook/note
+    =/  note-id-upd  ;:(weld "diary/" note-id-cleaned "s/note/" id-num)         :: e.g /diary/~let/test-notebook/notes/note
+
+    =/  scry-path=path  (stab (crip ;:(weld "/gx/diary/" note-id-upd "/noun")))
+    ;<  raw-note-data=note.d    bind:m  (scry note.d scry-path)
+    =/  note-txt=tape  (flatten-note raw-note-data)
+    =/  upd-query  (crip ;:(weld (trip query) "  Notebook content: " note-txt))  
+    (pure:m !>(upd-query))
+  ::
+  ::  Take a note and flatten it out into a cord (in markdown hopefully) 
+  ::  in order to send to LLM
+  ::
+  ++  flatten-note
+    |=  =note.d
+    ^-  tape
+    =/  ess=essay.d  +.note
+    =/  cont=(list verse.d)  content.ess  :: ignore seal, title, image, author, etc.
+    =/  txt-list=(list tape)  (turn cont flatten-essay)
+    (zing txt-list)
+  ::
+  ::  flatten-essay
+  ::
+  ++  flatten-essay
+    |=  =verse.d
+    ^-  tape
+    ?-  -.verse
+        %block
+      (flatten-block p.verse)
+        %inline
+      =/  inline-txt=(list tape)  (turn p.verse flatten-inline)
+      (zing inline-txt)
+    ==
+  ::
+  ++  flatten-block
+    |=  =block.d
+    ^-  tape
+    ?-  -.block
+        %image
+      (trip src.block)
+        %cite
+      "citation" :: ASM - check this, not sure what cite:c is
+        %header
+      =/  header-lines=(list tape)  (turn q.block flatten-inline)
+      ?-  p.block
+          %h1
+        (weld "#" `tape`(zing header-lines))
+          %h2
+        (weld "##" `tape`(zing header-lines))
+          %h3
+        (weld "###" `tape`(zing header-lines))
+          %h4
+        (weld "####" `tape`(zing header-lines))
+          %h5
+        (weld "#####" `tape`(zing header-lines))
+          %h6
+        (weld "######" `tape`(zing header-lines))
+      ==
+        %listing
+      (flatten-listing p.block)
+        %rule
+      ""
+        %code
+      ;:(weld "  Following code is " (trip lang.block) ". ``` " (trip code.block) " ```")
+    ==
+  ::
+  :: Flatten inline
+  ::
+  ++  flatten-inline
+    |=  =inline.d
+    ^-  tape
+    ?@  inline
+      (trip inline)
+    ?-  -.inline    
+        %italics
+      =/  italics-list=(list tape)  (turn p.inline flatten-inline)
+      ;:(weld "*" `tape`(zing italics-list) "*")
+        %bold
+      =/  bold-list=(list tape)  (turn p.inline flatten-inline)
+      ;:(weld "**" `tape`(zing bold-list) "**")
+        %strike
+      =/  strike-list=(list tape)  (turn p.inline flatten-inline)
+      ;:(weld "~~" `tape`(zing strike-list) "~~")
+        %blockquote
+      =/  block-list=(list tape)  (turn p.inline flatten-inline)
+      (weld ">" `tape`(zing block-list))
+        %inline-code
+      (weld "```" (trip p.inline))
+        %ship
+      (scow %p p.inline)
+        %block
+      ;:(weld (trip p.inline) " " (trip q.inline))
+        %code
+      (trip p.inline)
+        %tag
+      (trip p.inline)
+        %link
+      ;:(weld "[" (trip p.inline) "](" (trip q.inline) ")")
+        %break
+      "  \0a"
+    ==
+  ::
+  ::  Flatten list
+  ::
+  ++  flatten-listing
+    |=  =listing.d
+    ^-  tape
+
+    ?-  -.listing
+        %list
+      ?-  p.listing
+          %ordered
+        :: Not sure how to order these?
+        =/  or-listing=(list tape)  (turn q.listing flatten-listing)
+        =/  or-inline=(list tape)  (turn r.listing flatten-inline)
+        (zing (weld or-listing or-inline))
+          %unordered
+        =/  un-listing=(list tape)  (turn q.listing flatten-listing)
+        =/  un-inline=(list tape)  (turn r.listing flatten-inline)
+        (zing (weld un-listing un-inline))
+      ==
+        %item
+      =/  item-content=(list tape)  (turn p.listing flatten-inline)
+      `tape`(zing item-content)
+    ==
+  ::
   ::  Generate conversation key
-  ::  (e.g. '~zod/laurel-chat ')
+  ::  (e.g. '~zod/mentat-chat ')
   ::
   ++  generate-conv-key
     |=  =bird
@@ -169,13 +356,13 @@
     ^-  form:m
 
     ;<  key=@t              bind:m  (generate-conv-key bird)
-    ;<  has-conv=?          bind:m  (scry ? `path`['gx' 'laurel' 'has' key 'noun' ~])  :: check for conversation existence
+    ;<  has-conv=?          bind:m  (scry ? `path`['gx' 'mentat' 'has' key 'noun' ~])  :: check for conversation existence
 
     ?.  has-conv
       :: no prior conversation, returned annotated question
       (pure:m !>((crip ;:(weld "[INST] " (trip text.bird) " /[INST]"))))
     :: weld new question to all previous conversation
-    ;<  convo=conversation  bind:m  (scry conversation `path`['gx' 'laurel' 'conversation' key 'noun' ~])
+    ;<  convo=conversation  bind:m  (scry conversation `path`['gx' 'mentat' 'conversation' key 'noun' ~])
     =/  conv-parts  `(list tape)`(turn convo |=([i=@t j=@t] (trip j)))  :: return text without participants
     =/  conv-tape  `tape`(zing conv-parts)
     =/  conv-upd  (crip ;:(weld conv-tape "[INST] " (trip text.bird) " /[INST]"))
@@ -184,16 +371,17 @@
   ::  Build body of HTTP request to AI
   ::
   ++  build-request-body
-    |=  [model=inference-model question=@t]
+    |=  [model=inference-model sys-prompt=@t question=@t]
     ^-  @t
 
     =/  model-id  ['version' s+id.model]
     =/  prompt  ['prompt' s+question]
+    =/  s-prompt  ['system_prompt' s+sys-prompt]
 
     :: At least two ways of specifying tokens, let's send them all and see what happens
     :: hopefully non-functional input parameters will simply be ignored 
     ?~  tokens.model
-        =/  input  ['input' (pairs:enjs:format ~[prompt])]
+        =/  input  ['input' (pairs:enjs:format ~[s-prompt prompt])]
         :: 414
         ::(crip (en-json:html (pairs:enjs:format ~[model-id input])))
         :: 413
@@ -202,7 +390,7 @@
       =/  max-tokens  ['max_tokens' tokens]
       =/  max-new-tokens  ['max_new_tokens' tokens]
       =/  max-length  ['max_length' tokens]
-      =/  tokens-input  ['input' (pairs:enjs:format ~[prompt max-tokens max-new-tokens max-length])]
+      =/  tokens-input  ['input' (pairs:enjs:format ~[s-prompt prompt max-tokens max-new-tokens max-length])]
       :: 414
       ::(crip (en-json:html (pairs:enjs:format ~[model-id tokens-input])))
       :: 413
@@ -269,20 +457,20 @@
     ;<  ~                                 bind:m  (send-request req)
     ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response  
     ?~  resp
-      (pure:m !>([%fail `'[Laurel] error - cannot download generated AI response' ~]))
+      (pure:m !>([%fail `'[mentat] error - cannot download generated AI response' ~]))
     :: Check status code
     =/  status-code  status-code.response-header.+>-.resp
     =/  headers=(map @t @t)  (malt headers.response-header.+>-.resp)
     
     ?:  =(status-code 307)    
       ?.  (~(has by headers) 'location')
-        (pure:m !>([%fail `'[Laurel] error - cannot find redirect URL' ~]))
+        (pure:m !>([%fail `'[mentat] error - cannot find redirect URL' ~]))
         :: some requests get redirected, have to pull the image from the new url
       ~&  "... redirecting to {<(~(got by headers) 'location')>} ..."
       (pure:m !>([%redirect `(~(got by headers) 'location') ~]))
     ?.  |(=(status-code 200) =(status-code 201))
       :: Error response
-      (pure:m !>([%fail `'[Laurel] error -cannot download generated AI response' ~]))
+      (pure:m !>([%fail `'[mentat] error -cannot download generated AI response' ~]))
     :: Response ok
     ;<  image=mime                       bind:m  (extract-mime-body (need resp))
     :: return file extension in the @t
@@ -337,7 +525,7 @@
     
     ?~  s3-resp 
         :: response is [%done ~] from %cancel
-        (pure:m !>([%error '[Laurel] S3 upload failed - cancelled']))
+        (pure:m !>([%error '[mentat] S3 upload failed - cancelled']))
     
       =/  s3-status-code  status-code.response-header.+>-.s3-resp
       ?.  =(s3-status-code 200)
@@ -345,13 +533,13 @@
         =/  s3-msg  +:(need s3-resp)
         =/  s3-file  +.s3-msg
         =/  s3-xml  (cord +>+.s3-file)
-        =/  s3-return-msg  (crip ;:(weld "[Laurel] S3 upload failed, returned status code " (scow %ud s3-status-code) ": " (trip s3-xml)))
+        =/  s3-return-msg  (crip ;:(weld "[mentat] S3 upload failed, returned status code " (scow %ud s3-status-code) ": " (trip s3-xml)))
         (pure:m !>([%error s3-return-msg]))
       
       ::  Return image link
       =/  image-link  (crip ;:(weld "https://" (trip bucket) "." (trip host) "/" filename))
       (pure:m !>([%ok image-link]))
-::      (pure:m !>([`reply`[%story [[[%image image-link 300 300 'laurel generated image'] ~] [[image-link] ~]]] vase.bird]))
+::      (pure:m !>([`reply`[%story [[[%image image-link 300 300 'mentat generated image'] ~] [[image-link] ~]]] vase.bird]))
 ::    ==    
 ::
 ::

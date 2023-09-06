@@ -1,6 +1,6 @@
-## Laurel - An Urbit Chatbot
+## mentat - An Urbit Chatbot
 
-Laurel is an interface to various AI models.  Specifically it
+mentat is an interface to various AI models.  Specifically it
 interfaces with replicate models (although it can be tuned for OpenAI 
 or inference/huggingface if required).  
 Currently image generation and text generation models are supported.  You can find models to use at:
@@ -14,7 +14,7 @@ Create a new desk, copy in the files from this repository, and install in the us
 
 ### Dependencies
 
-Laurel requires that you have already installed %gato, and for long term image generation an S3 bucket must be installed via Silo.  All generated images will be stored in your default S3 bucket, made public, and displayed in the group chat where your bot is operating.
+mentat requires that you have already installed %gato, and for long term image generation an S3 bucket must be installed via Silo.  All generated images will be stored in your default S3 bucket, made public, and displayed in the group chat where your bot is operating.
 
 If you don't have an S3 bucket set up, images will still display, however they are temporary images stored on the replicate.com server, and will be unavailable after 24 hours.
 
@@ -35,10 +35,10 @@ timeout and tokens are optional values, if you are not using them simply use ~
 * specify timeout, in seconds, as `[%timeout @ud] or ~  (default is 60s)
 * specify tokens (maximum output tokens) as `[%tokens @ud] or ~ (default is the model's default)
 
-Examples (assuming the laurel.hoon thread file is in a desk called laurel)
+Examples (assuming the mentat.hoon thread file is in a desk called mentat)
 ```
-> :gato &add ['Talktome' [%laurel %laurel] !>([%public %text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `[%tokens 1.000])]
-> :gato &add ['DrawSomething' [%laurel %laurel] !>([%private %image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `[%timeout 120] ~)]
+> :gato &add ['Talktome' [%mentat %mentat] !>([%public %text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `[%tokens 1.000])]
+> :gato &add ['DrawSomething' [%mentat %mentat] !>([%private %image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `[%timeout 120] ~)]
 ```
 
 See https://github.com/midsum-salrux/gato For more instructions on %gato.

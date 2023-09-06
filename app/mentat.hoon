@@ -5,8 +5,8 @@
 :: The thread will poke this app to add lines to the conversation
 :: and scry this app to find the current state of the converstation.
 ::
-/-  *gato, *laurel
-/+  default-agent, dbug, laurel
+/-  *gato, *mentat
+/+  default-agent, dbug, mentat
 |%
 +$  versioned-state
   $%  state-0
