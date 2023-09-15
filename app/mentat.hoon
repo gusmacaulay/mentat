@@ -23,6 +23,7 @@
     def   ~(. (default-agent this %.n) bowl)
 ++  on-init   `..on-init
 ++  on-save   !>(~)
+:: TODO - need to add state management to ensure all conversations are stored.
 :: don't worry about saving or loading state?  Happy to lose it during updates?
 ++  on-load   |=(vase `..on-init)
 ++  on-poke

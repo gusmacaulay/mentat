@@ -4,7 +4,8 @@
 :: rather than as part of the URL)
 
 |%
-+$  type  ?(%image-generation %text-generation %conversation)
++$  type  ?(%image-generation %text-generation %conversation)  ::type no longer required
++$  cen-type  ?(%chat %query %img %comment %edit %note %default %clear)
 +$  view  ?(%public %private)
 
 +$  inference-model

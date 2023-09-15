@@ -2,7 +2,44 @@
 /-  d=diary, g=groups, ha=hark :: not sure which of these we'll need
 /+  *strandio, aws, regex
 =,  strand=strand:spider
-|%  
+|%
+  ::
+  :: There are issue with standard strandio.hoon await-thread
+  :: build our own in order to pass through error status
+  :: rather than failing and killing the calling thread
+  ::   
+  ++  custom-await-thread
+    |=  [file=term args=vase]
+    =/  m  (strand ,vase)
+    ^-  form:m
+  
+    ;<  =bowl:spider  bind:m  get-bowl
+    =/  tid  `@ta`(cat 3 'strand_' (scot %uv (sham file eny.bowl)))
+    ;<  ~             bind:m  (watch-our /awaiting/[tid] %spider /thread-result/[tid])
+    ;<  ~             bind:m  %-  poke-our
+                              :*  %spider
+                                  %spider-start
+                                  !>([`tid.bowl `tid byk.bowl(r da+now.bowl) file args])
+                              ==
+    ;<  =cage         bind:m  (take-fact /awaiting/[tid])
+    ;<  ~             bind:m  (take-kick /awaiting/[tid])
+    ?+  p.cage  ~|([%strange-thread-result p.cage file tid] !!)
+        %thread-done
+      :: q.q.cage is (e.g.) [%ok `reply`] as [@ud @ud]
+      =/  cage-data  q.q.cage
+      =/  ok-txt  [(@tas -.cage-data) (reply +.cage-data)]
+      (pure:m !>([%done ok-txt]))                              :: return %done so we can ?+ against this easily
+        %thread-fail
+      :: q.q.cage is a tang (list tank) in the form [%poke-fail <tang returned from thread>]
+      :: unpack it and pass through as a cord
+      =/  err  (tang q.q.cage)
+      =/  err-tank  (tank (snag 1 err))                        :: first tank in the tang
+      =/  err-cord  (crip (weld "Thread failed, unexpected error in" ~(ram re err-tank)))
+      (pure:m !>([%fail [%fail `reply`err-cord]]))                    :: return failure reason rather than fail the thread
+    ==
+  ::
+  :: Poll replicate url until timeout
+  ::
   ++  poll
     |=  [arg=vase timeout=@ud]
     =/  m  (strand ,vase)
@@ -26,7 +63,7 @@
     =/  sleeper  `@dr`(slav %dr seconds)
     ~&  "Polling replicate GET url - trying again in {<seconds>} seconds..."
     ;<  ~                                 bind:m  (sleep sleeper)           :: poll on a fibonacci basis
-    ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req) 
+    ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req)
     %=  $
       prev       counter
       counter    (add counter prev)
@@ -43,7 +80,7 @@
 
     ;<  ~                                 bind:m  (send-request request)
     ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response
-    
+
     ?~  resp 
        (pure:m ['http-error' ~])
         :: Extract status-code from xml
@@ -93,7 +130,7 @@
   ::  Parse user input
   ::    A needle such as "foo=" in a haystack such as "this is foo=bar really"
   ::    Will return the value "bar"
-  ::
+  ::  TODO: this can be replaced with REGEX
   ++  parse-input
     |=  [nedl=tape hstk=tape default=tape]
     ^-  tape
@@ -155,21 +192,14 @@
     ^-  [@p @tas @tas time @t]              ::  ship, channel, action id(timestamp), text
     ?>  ?=([%o *] json)
       =/  resp-obj  p.json
-      ~&  "resp-obj {<resp-obj>}"
       =/  data  (so:dejs:format (~(got by resp-obj) 'data'))
-      ~&  "data {<data>}"
       =/  action  `@tas`(so:dejs:format (~(got by resp-obj) 'action'))
-      ~&  "action {<action>}"
-      ::=/  id-text  (so:dejs:format (~(got by resp-obj) 'notebook'))
       =/  id-text  (~(got by resp-obj) 'notebook')
-      ~&  "id-text {<id-text>}"
       ?~  id-text
         ::  No notebook id, therefore return as an %add regardless of passed in action
-        ~&  "returning an %add"
         [*ship *@tas %add *time data]  
       ::  Parse passed in id to get ship, channel and timestamp
       =/  id  (parse-id (so:dejs:format id-text))
-      ~&  "decode-generated-notebook: {<[-.id +<.id action +>.id data]>}"
       [-.id +<.id action +>.id data]
   ::
   ::  Parse the LLM text version of the notebook id
@@ -543,4 +573,74 @@
 ::    ==    
 ::
 ::
+:: ======================================================
+:: mentat-core functions
+::
+  ++  query-replicate
+    |=  [=bird model=inference-model pre-prompt=@t question=@t]
+    =/  m  (strand ,vase)
+    ^-  form:m
+    ::
+    :: Build HTTP request for Replicate
+    ::
+    =/  url  'https://api.replicate.com/v1/predictions'
+    
+    :: Headers
+    =/  type  ['Content-Type' 'application/json']
+    =/  auth  ['Authorization' (crip (weld "Token " (trip api-key.model)))]
+    =/  headers  `(list [@t @t])`[type auth ~]
+    
+    :: Body
+    =/  json-body  (build-request-body [model pre-prompt question])
+    
+    :: 
+    :: Make http request to AI
+    ::
+    =/  =request:http
+      :*  method=%'POST'                                  :: 'POST', not 'GET'
+          url=url                                         :: url as cord
+          header-list=headers                             :: (list [key=@t value=@t])
+          `(as-octs:mimes:html json-body)                 :: this needs to be (unit octs) from encoded json
+      ==
+      
+    ;<  ~                                 bind:m  (send-request request)
+    ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response  
+    ~&  "[mentat] Have AI response - processing..."
+    
+    ?~  resp 
+      :: response is [%done ~] from %cancel
+      (pure:m !>([%error 'http error - cancelled']))
+      
+    :: Extract status-code from xml
+    =/  status-code  status-code.response-header.+>-.resp
+    ?.  |(=(status-code 200) =(status-code 201))
+        ~&  "[mentat] error - AI returned non 200/201 status code"
+        =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code)))
+        ::(pure:m !>([return-msg vase.bird]))
+        (pure:m !>([%error return-msg]))
+    
+      ::  Status code 200 or 201
+      ;<  resp-txt=@t  bind:m  (extract-body (need resp))
+      =/  resp-json  (need (de:json:html resp-txt))  
+    
+      =/  replicate-urls  (decode-replicate-post-resp resp-json)
+    
+      :: A GET request to poll the get URL with, must be authenticated
+      =/  get-req=request:http
+        :*  method=%'GET'                                   :: 'GET'
+            url=-.replicate-urls                            :: url as cord
+            header-list=~[auth]                             :: send authentication header
+            ~                                               :: empty body
+        ==
+    
+    ::  Poll the get url until we get a definitive result, set default timeout as 60seconds
+    =/  timeout  ?~(timeout.model 60 +:(need timeout.model))  
+    ;<  get-resp=vase       bind:m  (poll [!>(get-req) timeout])
+    =/  poll-resp  !<([@t (unit @t)] get-resp)
+
+    ?.  =(-.poll-resp 'succeeded')
+      =/  poll-err  ?~((need +.poll-resp) "unknown" (trip (need +.poll-resp)))
+      =/  poll-err-msg  (crip (weld "Error completing your AI request: " poll-err))
+      (pure:m !>([%error poll-err-msg]))
+    (pure:m !>([%ok (need +.poll-resp)]))  
 --
