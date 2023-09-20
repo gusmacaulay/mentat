@@ -9,14 +9,17 @@ https://replicate.com/
 
 ### Installation
 
-Create a new desk, copy in the files from this repository, and install in the usual way.  There is no front-end, so the landscape tile leads nowhere.
+Create a new desk by merging from %groups (??), copy in the files from this repository, and install in the usual way.  There is no front-end, so the landscape tile leads nowhere.
 
+Install %gato.  For fakezod ships this will mean either installing from git (you can also copy from a live ship but need to modify desk.herd or it won't work)
+
+TODO: make use of herd for managing our dependencies
 
 ### Dependencies
 
 mentat requires that you have already installed %gato, and for long term image generation an S3 bucket must be installed via Silo.  All generated images will be stored in your default S3 bucket, made public, and displayed in the group chat where your bot is operating.
 
-If you don't have an S3 bucket set up, images will still display, however they are temporary images stored on the replicate.com server, and will be unavailable after 24 hours.
+If you don't have an S3 bucket set up, images will still display, however they are temporary images stored on the replicate.com server, and will be navailable after 24 hours.
 
 
 ### Starting a chatbot
