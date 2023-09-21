@@ -40,8 +40,8 @@ timeout and tokens are optional values, if you are not using them simply use ~
 
 Examples (assuming the mentat.hoon thread file is in a desk called mentat)
 ```
-> :gato &add ['Talktome' [%mentat %mentat] !>([%public %text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `[%tokens 1.000])]
-> :gato &add ['DrawSomething' [%mentat %mentat] !>([%private %image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `[%timeout 120] ~)]
+> :gato &add ['Talktome' [%mentat %mentat] !>([%public %text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx' ~ `[%tokens 1.000]])]
+> :gato &add ['DrawSomething' [%mentat %mentat] !>([%private %image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx' `[%timeout 120] ~])]
 ```
 
 See https://github.com/midsum-salrux/gato For more instructions on %gato.
