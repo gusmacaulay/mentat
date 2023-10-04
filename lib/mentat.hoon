@@ -323,7 +323,7 @@
       =/  block-list=(list tape)  (turn p.inline flatten-inline)
       (weld ">" `tape`(zing block-list))
         %inline-code
-      (weld "```" (trip p.inline))
+      ;:(weld "```" (trip p.inline) "```")
         %ship
       (scow %p p.inline)
         %block
@@ -336,6 +336,11 @@
       ;:(weld "[" (trip p.inline) "](" (trip q.inline) ")")
         %break
       "  \0a"
+        %task
+      =/  task-text  `tape`(zing `(list tape)`(turn q.inline flatten-inline))
+      ?:  p.inline
+        (weld "[ ] " task-text)
+      (weld "[x] " task-text)
     ==
   ::
   ::  Flatten list
@@ -353,6 +358,10 @@
         =/  or-inline=(list tape)  (turn r.listing flatten-inline)
         (zing (weld or-listing or-inline))
           %unordered
+        =/  un-listing=(list tape)  (turn q.listing flatten-listing)
+        =/  un-inline=(list tape)  (turn r.listing flatten-inline)
+        (zing (weld un-listing un-inline))
+          %tasklist
         =/  un-listing=(list tape)  (turn q.listing flatten-listing)
         =/  un-inline=(list tape)  (turn r.listing flatten-inline)
         (zing (weld un-listing un-inline))
