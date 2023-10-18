@@ -10,20 +10,31 @@
 ^-  thread:spider
 |=  arg=vase
 ^-  form:m
-:: bird is the complete data coming in from %gato, cen-type is the
+:: bird is the complete data coming in from %gato, centag is the
 :: incoming centag (useful if we have one sub-thread dealing with multiple centags)
-=/  [=bird cntp=cen-type]  !<([bird cen-type] arg)
+:: model is the inference-model (now replicate model) that this child thread
+:: will be running 
+
+=/  [=bird =centag model=inference-model]  !<([bird centag inference-model] arg)
+=/  =bot-id  !<(bot-id vase.bird)
 
 ::
 :: Set up the model
 ::
-=/  model=inference-model  !<(inference-model vase.bird)
 =/  msg-origin=@p  author.memo.bird
 =/  question  text.bird
 =/  pre-prompt  'You are a helpful and very clever editor.  Always answer with a single JSON string in the format: {"notebook": $notebook-id "action": $action"data": $data}.  If you find a string in the input text that is in the format "~let/test-notebook/note/170141184506385861578430265978091732992" it must be returned as $notebook-id, otherwise return "null".  If you are asked to edit or modify a file, text or data, return $action with the value "edit".  If asked to comment or respond to a file, text or data return $action with the value "comment".  Return $data as a text string of all other parts of your response.'
 
 ;<  our=@p               bind:m  get-our
 ;<  now=@da              bind:m  get-time
+
+::
+:: Ignore messages from other ships if set to %private
+::
+?:  &(=(view.model %private) ?!(=(msg-origin our)))
+  ~&  "Message origin not our ship - ignoring"
+  !!
+
 
 ::
 :: Scan for note-id, if found, read in as context
@@ -44,10 +55,6 @@
 ?:  =(-.replicate-resp %error)
   (pure:m !>([%error `reply`+.replicate-resp]))
 
-::
-:: Text response
-::
-~&  "TEXT RESPONSE"
 :: let's take the text output and use it to create a notebook instead
 :: we need to poke diary.hoon with %diary-action (or %diary-action-1 or %diary-action-0 ??) and the diary-action
 
@@ -55,15 +62,8 @@
 :: notebook and data fields.
 :: return the ship, channel, notebook id, and data
 =/  json-resp  (need (de:json:html +.replicate-resp))
-~&  "json-resp: {<json-resp>}"
 =/  [shp=@p chn=@tas act=@tas id=time data=@t]  (decode-generated-notebook json-resp)
 =/  flag=flag.g  [shp chn]  :: output to this ship & channel (regardless of group)
-
-~&  "shp {<shp>}"
-~&  "chn {<chn>}"
-~&  "act {<act>}"
-~&  "id {<id>}"
-~&  "data {<data>}"
 
 ?+  act    (pure:m !>([%error `reply`'Unexpected error']))
     %add
