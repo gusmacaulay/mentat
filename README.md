@@ -24,6 +24,7 @@ If you don't have an S3 bucket set up, images will still display, however they a
 
 ### Starting a chatbot
 
+_*NOTE: bot-type has been removed from setup - child threads deals with this now*_
 Start a gato thread as follows:
 ```
 > :gato &add [<bot-name> [<desk> <thread-file>] !>([<bot-view> <bot-type> <model> <auth> <timeout> <tokens>])]
@@ -32,16 +33,16 @@ Start a gato thread as follows:
 Models may be specified as either public or private.
 * %public models respond to anyone, %private models only respond to the ship on which they're running.
 
-Valid model types are `%text-generation`, `%image-generation`, and `%conversation`
+* model types such as `%text-geneation`, `%image-generation`, etc. are no longer required as they will be set up individually through the UI.
 
 timeout and tokens are optional values, if you are not using them simply use ~
-* specify timeout, in seconds, as `[%timeout @ud] or ~  (default is 60s)
-* specify tokens (maximum output tokens) as `[%tokens @ud] or ~ (default is the model's default)
+* specify timeout, in seconds, as a unit, `@ud or ~  (default is 60s)
+* specify tokens (maximum output tokens) as a unit, `@ud or ~ (default is the model's default)
 
 Examples (assuming the mentat.hoon thread file is in a desk called mentat)
 ```
-> :gato &add ['Talktome' [%mentat %mentat] !>([%public %text-generation '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx' ~ `[%tokens 1.000]])]
-> :gato &add ['DrawSomething' [%mentat %mentat] !>([%private %image-generation 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx' `[%timeout 120] ~])]
+> :gato &add ['Talktome' [%mentat %mentat] !>([%public '6282abe6a492de4145d7bb601023762212f9ddbbe78278bd6771c8b3b2f2a13b' 'xxxxxxxxxxxxxxxxxxx'] ~ `1.000)]
+> :gato &add ['DrawSomething' [%mentat %mentat] !>([%private 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4' 'xxxxxxxxxxxxxxxxxxx'] `120 ~)]
 ```
 
 See https://github.com/midsum-salrux/gato For more instructions on %gato.
@@ -74,6 +75,8 @@ See https://github.com/midsum-salrux/gato For more instructions on %gato.
 
 ### Using the chatbot
 
+_* NOTE: you now need to add a centag %blah to direct your query to 
+the correct child thread - e.g. %query %chat %img *_
 In a Groups chat access the chatbot like so:
 ```
 /Talktome Once upon a time on an Urbit ship...

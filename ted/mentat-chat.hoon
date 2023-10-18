@@ -1,21 +1,24 @@
 ::
 :: %mentat sub-thread to process chat requests to LLM
 ::
-/-  spider, *gato, *mentat
-/+  *strandio, *mentat, regex
+/-  spider, *gato, *mentat, *mentat-chat
+/+  *strandio, *mentat, *mentat-chat, regex
 =,  strand=strand:spider
 =/  m  (strand ,vase)
 ^-  thread:spider
 |=  arg=vase
 ^-  form:m
-:: bird is the complete data coming in from %gato, cen-type is the
+:: bird is the complete data coming in from %gato, centag is the
 :: incoming centag (useful if we have one sub-thread dealing with multiple centags)
-=/  [=bird cntp=cen-type]  !<([bird cen-type] arg)
+:: model is the inference-model (now replicate model) that this child thread
+:: will be running 
+
+=/  [=bird =centag model=inference-model]  !<([bird centag inference-model] arg)
+=/  =bot-id  !<(bot-id vase.bird)
 
 ::
 :: Set up the model
 ::
-=/  model=inference-model  !<(inference-model vase.bird)
 =/  msg-origin=@p  author.memo.bird
 =/  question  text.bird  ::TODO, strip the centag from the question
 =/  pre-prompt  'You are a helpful, friendly and informative assistant.'
@@ -24,19 +27,25 @@
 ;<  now=@da              bind:m  get-time
 
 ::
+:: Ignore messages from other ships if set to %private
+::
+?:  &(=(view.model %private) ?!(=(msg-origin our)))
+  ~&  "Message origin not our ship - ignoring"
+  !!
+
+::
 :: Clear conversation if requested
 ::
-?:  =(cntp %clear)
-  ::TODO - how to clear current conversation context
-  :: and keep entire conversation
-  ;<  clear-key=@t  bind:m  (generate-conv-key bird)
-  ;<  ~             bind:m  (poke-our %mentat [%clear !>(clear-key)])
-  (pure:m !>([%ok `reply`'** conversation cleared **']))
+:: TODO this should be replaced with context windows
+::?:  =(centag %clear)
+::  ;<  ~             bind:m  (poke-our %mentat [%clear-chat !>(key)])
+::  (pure:m !>([%ok `reply`'** conversation cleared **' 'new conversation']))
 
 ::
 :: Build conversation from data
 ::
-;<  qst-vase=vase  bind:m  (build-conversation bird)
+:: TODO conversation labels
+;<  qst-vase=vase  bind:m  (build-conversation bird bot-id centag 'default')
 =/  qst  !<(@t qst-vase)
 
 ::
@@ -47,17 +56,11 @@
 
 :: 
 :: Conversation response
-:: return [@tas reply] to ted/mentat.hoon
+:: return [@tas reply @t] to ted/mentat.hoon
 ::
 ?+  -.replicate-resp  (pure:m !>([%error 'Error in replicate.com response']))
     %error
-  (pure:m !>([%error `reply`+.replicate-resp]))
+  (pure:m !>([%error `reply`+.replicate-resp ~]))
     %ok
-  :: TODO this can all move to ted/mentat.hoon as we'll be recording all conversation data
-  :: poke update to conversation to app
-  :: update with both question asked and answer returned
-  ;<  conv-key=@t  bind:m  (generate-conv-key bird)
-  ;<  ~            bind:m  (poke-our %mentat [%add !>([conv-key [%user qst]])])
-  ;<  ~            bind:m  (poke-our %mentat [%add !>([conv-key [%ai +.replicate-resp]])])
-  (pure:m !>([%ok `reply`+.replicate-resp]))
+  (pure:m !>([%ok `reply`+.replicate-resp `@t`+.replicate-resp]))
   ==

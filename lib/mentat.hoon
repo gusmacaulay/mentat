@@ -1,5 +1,5 @@
-/-  spider, *gato, *mentat
-/-  d=diary, g=groups, ha=hark :: not sure which of these we'll need
+/-  spider, *gato, *mentat::, mc=mentat-chat
+/-  d=diary, g=groups, c=chat, ha=hark :: not sure which of these we'll need
 /+  *strandio, aws, regex
 =,  strand=strand:spider
 |%
@@ -26,8 +26,9 @@
     ?+  p.cage  ~|([%strange-thread-result p.cage file tid] !!)
         %thread-done
       :: q.q.cage is (e.g.) [%ok `reply`] as [@ud @ud]
+      :: q.q.cage is (e.g. [%ok `reply` @t])
       =/  cage-data  q.q.cage
-      =/  ok-txt  [(@tas -.cage-data) (reply +.cage-data)]
+      =/  ok-txt  [(@tas -.cage-data) (reply +<.cage-data) (@t +>.cage-data)]
       (pure:m !>([%done ok-txt]))                              :: return %done so we can ?+ against this easily
         %thread-fail
       :: q.q.cage is a tang (list tank) in the form [%poke-fail <tang returned from thread>]
@@ -35,21 +36,23 @@
       =/  err  (tang q.q.cage)
       =/  err-tank  (tank (snag 1 err))                        :: first tank in the tang
       =/  err-cord  (crip (weld "Thread failed, unexpected error in" ~(ram re err-tank)))
-      (pure:m !>([%fail [%fail `reply`err-cord]]))                    :: return failure reason rather than fail the thread
+      (pure:m !>([%fail [%fail `reply`err-cord ~]]))           :: return failure reason rather than fail the thread
     ==
   ::
   :: Poll replicate url until timeout
   ::
   ++  poll
-    |=  [arg=vase timeout=@ud]
+    |=  [arg=vase =flag.c timeout=@ud]
     =/  m  (strand ,vase)
     ^-  form:m
     =/  req  !<(request:http arg)
+
     =/  counter  1      :: time-out after 232 seconds (counter > 60)
     =/  prev  0         :: for fibonacci sequence
     =/  exit  'false'   :: exit on null http response, non-200 status code, status=failed, completed, or cancelled
     =/  return  *[@t (unit @t)]
-
+    =/  old-id  [*@p *@da]
+  
     :: Polling, with wait times between calls on a fibonacci sequence
     :: would be good to allow user to add their own max time-out
     |-
@@ -61,15 +64,56 @@
     :: convert counter (use prev so as not to go over time) to seconds for timer
     =/  seconds  (crip (weld "~s" (trip `@t`(scot %ud prev))))
     =/  sleeper  `@dr`(slav %dr seconds)
-    ~&  "Polling replicate GET url - trying again in {<seconds>} seconds..."
-    ;<  ~                                 bind:m  (sleep sleeper)           :: poll on a fibonacci basis
+    ::~&  "Polling replicate GET url - trying again in {<seconds>} seconds..."
+    ;<  ~                                 bind:m  (sleep sleeper)                     :: poll on a fibonacci basis
     ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req)
+    ;<  id=[@p @da]                       bind:m  (poll-message flag old-id counter)  :: "waiting" output
     %=  $
-      prev       counter
-      counter    (add counter prev)
-      return     poll-resp
-      exit       ?:(|(=(-.poll-resp 'succeeded') =(-.poll-resp 'failed') =(-.poll-resp 'cancelled') =(-.poll-resp 'completed') =(-.poll-resp 'http-error')) 'true' 'false')
+      prev          counter
+      counter       (add counter prev)
+      old-id        id
+      return        poll-resp
+      exit          ?:(|(=(-.poll-resp 'succeeded') =(-.poll-resp 'failed') =(-.poll-resp 'cancelled') =(-.poll-resp 'completed') =(-.poll-resp 'http-error')) 'true' 'false')
     ==
+  
+  ::
+  ::  "waiting" message output direct to chat, since we can only return a final value to %gato
+  ::
+  ++  poll-message
+    |=  [=flag.c old-id=[@p @da] counter=@ud]
+    =/  m  (strand ,[@p @da])
+    ^-  form:m
+
+    ;<  our=@p         bind:m  get-our
+    ;<  now=@da        bind:m  get-time
+
+    =/  txt-list  ?:(=(counter 0) ~['...waiting'] ~[(crip (weld "...waiting" `tape`(reap +(counter) '.')))])
+
+    =/  id  [our now]
+
+    =/  memo=memo:c
+      :*  replying=~  :: ~ is latest message, an `id, which is [ship time] replies to a specific message
+          author=our
+          sent=now
+          [%story [*(list block.c) `(list inline.c)`txt-list]]
+      ==
+
+    =/  delt-add  [%add memo]
+    =/  diff-add  `diff:c`[%writs `diff:writs:c`[id delt-add]]
+    =/  update-add  [now diff-add]
+    =/  action-add=action.c  [flag update-add]
+    
+    =/  delt-del  [%del ~]
+    =/  diff-del  `diff:c`[%writs `diff:writs:c`[old-id delt-del]]  :: old-id is previous add
+    =/  update-del  [now diff-del]
+    =/  action-del=action.c  [flag update-del]
+    
+    ?:  (gth counter 0)
+      ;<  ~           bind:m  (poke-our %chat [%chat-action !>([action-del])])
+      ;<  ~           bind:m  (poke-our %chat [%chat-action !>([action-add])])
+      (pure:m id)
+    ;<  ~           bind:m  (poke-our %chat [%chat-action !>([action-add])])
+    (pure:m id)
   ::
   ::  Polling http-request
   ::
@@ -160,9 +204,7 @@
     |=  =json
     ^-  @t
     ?>  ?=([%a *] json)
-      :: json is an array - take the first element
       =/  resp-obj  (snag 0 p.json)
-      ::=/  resp-obj  -.p.json
       ?>  ?=([%o *] resp-obj)
         =/  resp-text  p.resp-obj
         =/  generated-text  (~(got by resp-text) 'generated_text')
@@ -220,9 +262,6 @@
     =/  id=@da  `@da`(ni:dejs:format n+id-cord)
     [shp channel id]
   ::
-  ::  Scry for note data and append it to the user's question so that
-  ::  the LLM can comment on it or edit it. i.e. add to context.
-  ::
   ++  append-note
     |=  [query=@t note-id=@t]
     =/  m  (strand ,vase)
@@ -277,7 +316,7 @@
         %image
       (trip src.block)
         %cite
-      "citation" :: ASM - check this, not sure what cite:c is
+      "citation" :: TODO - check this, not sure what cite:c is
         %header
       =/  header-lines=(list tape)  (turn q.block flatten-inline)
       ?-  p.block
@@ -297,7 +336,7 @@
         %listing
       (flatten-listing p.block)
         %rule
-      ""
+      "\0a---\0a"
         %code
       ;:(weld "  Following code is " (trip lang.block) ". ``` " (trip code.block) " ```")
     ==
@@ -309,7 +348,12 @@
     ^-  tape
     ?@  inline
       (trip inline)
-    ?-  -.inline    
+    ?-  -.inline
+::        %task
+::      =/  task-text  `tape`(zing `(list tape)`(turn q.inline flatten-inline))
+::      ?:  =(p.inline)
+::        (weld "[ ] " task-text)
+::      (weld "[x] " task-text)
         %italics
       =/  italics-list=(list tape)  (turn p.inline flatten-inline)
       ;:(weld "*" `tape`(zing italics-list) "*")
@@ -371,49 +415,13 @@
       `tape`(zing item-content)
     ==
   ::
-  ::  Generate conversation key
-  ::  (e.g. '~zod/mentat-chat ')
-  ::
-  ++  generate-conv-key
-    |=  =bird
-    =/  m  (strand ,@t)
-    ^-  form:m
-    ;<  our=@p    bind:m  get-our
-    =/  our-tape  (scow %p our)
-
-    :: Type checking for a plain @t, fails with code, highlights, embeds, etc.
-    ?>  ?=(@t +>-.content.memo.bird)  
-      =/  full-text  (trip +>-.content.memo.bird)
-      =/  key  (crip (weld our-tape (scag (need (find (trip text.bird) full-text)) full-text))) 
-      (pure:m key)
-  ::
-  ::  Build conversation cord for conversation models
-  ::
-  ++  build-conversation
-    |=  =bird
-    =/  m  (strand ,vase)
-    ^-  form:m
-
-    ;<  key=@t              bind:m  (generate-conv-key bird)
-    ;<  has-conv=?          bind:m  (scry ? `path`['gx' 'mentat' 'has' key 'noun' ~])  :: check for conversation existence
-
-    ?.  has-conv
-      :: no prior conversation, returned annotated question
-      (pure:m !>((crip ;:(weld "[INST] " (trip text.bird) " /[INST]"))))
-    :: weld new question to all previous conversation
-    ;<  convo=conversation  bind:m  (scry conversation `path`['gx' 'mentat' 'conversation' key 'noun' ~])
-    =/  conv-parts  `(list tape)`(turn convo |=([i=@t j=@t] (trip j)))  :: return text without participants
-    =/  conv-tape  `tape`(zing conv-parts)
-    =/  conv-upd  (crip ;:(weld conv-tape "[INST] " (trip text.bird) " /[INST]"))
-    (pure:m !>(conv-upd))
-  ::
   ::  Build body of HTTP request to AI
   ::
   ++  build-request-body
     |=  [model=inference-model sys-prompt=@t question=@t]
     ^-  @t
 
-    =/  model-id  ['version' s+id.model]
+    =/  model-id  ['version' s+model-id.model]
     =/  prompt  ['prompt' s+question]
     =/  s-prompt  ['system_prompt' s+sys-prompt]
 
@@ -421,18 +429,12 @@
     :: hopefully non-functional input parameters will simply be ignored 
     ?~  tokens.model
         =/  input  ['input' (pairs:enjs:format ~[s-prompt prompt])]
-        :: 414
-        ::(crip (en-json:html (pairs:enjs:format ~[model-id input])))
-        :: 413
         (en:json:html (pairs:enjs:format ~[model-id input]))
-      =/  tokens  (numb:enjs:format +:(need tokens.model))
+      =/  tokens  (numb:enjs:format (need tokens.model))
       =/  max-tokens  ['max_tokens' tokens]
       =/  max-new-tokens  ['max_new_tokens' tokens]
       =/  max-length  ['max_length' tokens]
       =/  tokens-input  ['input' (pairs:enjs:format ~[s-prompt prompt max-tokens max-new-tokens max-length])]
-      :: 414
-      ::(crip (en-json:html (pairs:enjs:format ~[model-id tokens-input])))
-      :: 413
       (en:json:html (pairs:enjs:format ~[model-id tokens-input]))
   ::
   :: Custom extract-body to get mime data
@@ -484,12 +486,13 @@
     |=  [url=@t auth=[@t @t]]
     =/  m  (strand ,vase)
     ^-  form:m
-
+    
+    :: some models require auth, and others have problems if auth is included!
     =/  req=request:http
       :*  method=%'GET'                                   :: 'GET'
           url=url                                         :: url as cord
-          ::header-list=~[auth]                             :: send authentication header
-          header-list=~
+          header-list=~[auth]                             :: send authentication header
+          ::header-list=~
           ~                                               :: empty body
     ==
 
@@ -521,7 +524,6 @@
 ::  and return S3 link for chat message
 ::
   ++  s3-upload
-    ::|=  [url=@t auth=[@t @t] bucket=@t region=@t secret=@t access-id=@t endpoint=@t]
     |=  [answer-img=mime file-ext=@t auth=[@t @t] bucket=@t region=@t secret=@t access-id=@t endpoint=@t]
     =/  m  (strand ,vase)                                 :: vase is [@tas @t] %error or %ok + msg/url
     ^-  form:m
@@ -578,12 +580,8 @@
       ::  Return image link
       =/  image-link  (crip ;:(weld "https://" (trip bucket) "." (trip host) "/" filename))
       (pure:m !>([%ok image-link]))
-::      (pure:m !>([`reply`[%story [[[%image image-link 300 300 'mentat generated image'] ~] [[image-link] ~]]] vase.bird]))
-::    ==    
 ::
-::
-:: ======================================================
-:: mentat-core functions
+::  Send a request to a Replicate.com LLM  
 ::
   ++  query-replicate
     |=  [=bird model=inference-model pre-prompt=@t question=@t]
@@ -614,8 +612,7 @@
       
     ;<  ~                                 bind:m  (send-request request)
     ;<  resp=(unit client-response:iris)  bind:m  take-maybe-response  
-    ~&  "[mentat] Have AI response - processing..."
-    
+
     ?~  resp 
       :: response is [%done ~] from %cancel
       (pure:m !>([%error 'http error - cancelled']))
@@ -625,7 +622,6 @@
     ?.  |(=(status-code 200) =(status-code 201))
         ~&  "[mentat] error - AI returned non 200/201 status code"
         =/  return-msg  (crip ;:(weld "Error!  AI returned status code " (scow %ud status-code)))
-        ::(pure:m !>([return-msg vase.bird]))
         (pure:m !>([%error return-msg]))
     
       ::  Status code 200 or 201
@@ -643,13 +639,28 @@
         ==
     
     ::  Poll the get url until we get a definitive result, set default timeout as 60seconds
-    =/  timeout  ?~(timeout.model 60 +:(need timeout.model))  
-    ;<  get-resp=vase       bind:m  (poll [!>(get-req) timeout])
+    =/  timeout  ?~(timeout.model 60 (need timeout.model))
+    ;<  get-resp=vase       bind:m  (poll [!>(get-req) flag.bird timeout])
     =/  poll-resp  !<([@t (unit @t)] get-resp)
 
     ?.  =(-.poll-resp 'succeeded')
       =/  poll-err  ?~((need +.poll-resp) "unknown" (trip (need +.poll-resp)))
       =/  poll-err-msg  (crip (weld "Error completing your AI request: " poll-err))
       (pure:m !>([%error poll-err-msg]))
-    (pure:m !>([%ok (need +.poll-resp)]))  
+    (pure:m !>([%ok (need +.poll-resp)]))
+::
+::  Extract bot-id from bird
+::
+  ++  extract-bot-id
+    |=  =bird
+    ^-  bot-id
+    :: this may need to be more robust, we're assuming that the content.memo.bird
+    :: is a plain-text, inline, story (i.e. a simple @t)
+
+    :: Type checking for a plain @t, will fail with code, blocks, highlights, embeds, etc.
+    ?>  ?=(@t +>-.content.memo.bird)  
+      =/  full-text  (trip +>-.content.memo.bird)
+      =/  text  (run:regex "/[a-z,A-Z,0-9,-]+" full-text)  :: the first "/Some-thing-123" found in the text
+      =/  trimmed-text  (oust [0 1] q.->+:(need text))                  :: trim the slash from the beginning
+      (crip trimmed-text)
 --
