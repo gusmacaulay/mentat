@@ -1,4 +1,4 @@
-/-  spider, *gato, *mentat::, mc=mentat-chat
+/-  spider, *gato, *mentat, mr=mentat-remind ::, mc=mentat-chat
 /-  d=diary, g=groups, c=chat, ha=hark :: not sure which of these we'll need
 /+  *strandio, aws, regex
 =,  strand=strand:spider
@@ -243,6 +243,63 @@
       ::  Parse passed in id to get ship, channel and timestamp
       =/  id  (parse-id (so:dejs:format id-text))
       [-.id +<.id action +>.id data]
+  ::
+  ::  Decode json returned from the LLM
+  ::  which specifies details related to
+  ::  the reminder.
+  ::
+  ++  decode-generated-reminder
+    |=  =json
+    ^-  rem.mr
+    ::
+    |^
+    (to-reminder json)
+    ::
+    ++  to-reminder
+      =,  dejs:format
+      %-
+      ot
+      :~
+        [%action (cu act.mr so)]
+        [%delay (cu delay-as-dr ni)]
+        [%when (cu parse-iso-dt so)]
+        [%repeat (cu freq.mr so)]
+        [%message so]
+      ==
+    ::
+    ++  delay-as-dr
+      |=  delay=@ud
+      ^-  @dr
+      (sub (from-unix:chrono:userlib delay) (from-unix:chrono:userlib 0))
+    ::
+    ++  parse-iso-dt
+      |=  iso=@t
+      ^-  @da
+      |^
+      %-  year
+      %+  rash
+        iso
+      %+  cook
+        parts-to-date
+      ;~  plug
+        ;~(sfix dem (jest '-'))
+        ;~(sfix dem (jest '-'))
+        ;~(sfix dem (jest 'T'))
+        ;~(sfix dem (jest ':'))
+        ;~(sfix dem (jest ':'))
+        dem
+        :: TZ info in the prediction is never reliable
+        :: drop it here if it was provided despite our pleading
+        ;~(pose (jest 'Z') (easy ''))
+      ==
+      ++  parts-to-date
+        |=  [year=@ud month=@ud day=@ud hour=@ud minute=@ud second=@ud zee=@t]
+        ^-  date
+        :+  [a=%.y y=year]
+          m=month
+        t=[d=day h=hour m=minute s=second f=~]
+      --
+    --
   ::
   ::  Parse the LLM text version of the notebook id
   ::  into something useful

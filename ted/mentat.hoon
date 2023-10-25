@@ -47,6 +47,7 @@
       [%comment %mentat-note]
       [%edit %mentat-note]
       [%note %mentat-note]
+      [%remind %mentat-remind]
       [%default %mentat-query]
   ==
 
