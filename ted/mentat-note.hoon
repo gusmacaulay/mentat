@@ -16,7 +16,7 @@
 :: will be running 
 
 =/  [=bird =centag model=inference-model]  !<([bird centag inference-model] arg)
-=/  =bot-id  !<(bot-id vase.bird)
+=/  =bot-id  !<(bot-id vase.bird) 
 
 ::
 :: Set up the model
@@ -53,8 +53,12 @@
 
 
 ?:  =(-.replicate-resp %error)
-  (pure:m !>([%error `reply`+.replicate-resp]))
+  (pure:m !>([%error `reply`+.replicate-resp ~]))
 
+::
+:: Text response
+::
+~&  "TEXT RESPONSE"
 :: let's take the text output and use it to create a notebook instead
 :: we need to poke diary.hoon with %diary-action (or %diary-action-1 or %diary-action-0 ??) and the diary-action
 
@@ -62,8 +66,15 @@
 :: notebook and data fields.
 :: return the ship, channel, notebook id, and data
 =/  json-resp  (need (de:json:html +.replicate-resp))
+~&  "json-resp: {<json-resp>}"
 =/  [shp=@p chn=@tas act=@tas id=time data=@t]  (decode-generated-notebook json-resp)
 =/  flag=flag.g  [shp chn]  :: output to this ship & channel (regardless of group)
+
+~&  "shp {<shp>}"
+~&  "chn {<chn>}"
+~&  "act {<act>}"
+~&  "id {<id>}"
+~&  "data {<data>}"
 
 ?+  act    (pure:m !>([%error `reply`'Unexpected error']))
     %add
@@ -87,7 +98,7 @@
   =/  diff-diary=diff.d  [%notes (time now) delt]
   =/  diary-action=action.d  [flag-add [(time now) diff-diary]]
   ;<  ~            bind:m  (poke-our %diary [%diary-action-1 !>([diary-action])])
-  (pure:m !>([%ok `reply`'Output in a new note.']))
+  (pure:m !>([%ok `reply`'Output in a new note.' 'Output in new note']))
   ::
     %edit
   ~&  "inside %edit"
@@ -110,7 +121,7 @@
   
   =/  diary-action=action.d  [flag [*time diff-diary]]         :: for %edit, send *time, not now
   ;<  ~            bind:m  (poke-our %diary [%diary-action !>([diary-action])])
-  (pure:m !>([%ok `reply`'Note edited.']))
+  (pure:m !>([%ok `reply`'Note edited.' 'Note edited']))
   ::
     %comment
   :: For note comment
@@ -127,5 +138,5 @@
   =/  diff-diary=diff.d  [%notes id delt]
   =/  diary-action=action.d  [flag [*time diff-diary]]         :: for %edit, send *time, not now
   ;<  ~            bind:m  (poke-our %diary [%diary-action !>([diary-action])])
-  (pure:m !>([%ok `reply`'Commented on note.']))
+  (pure:m !>([%ok `reply`'Commented on note.' 'Commented on note']))
 ==

@@ -5,7 +5,7 @@
 :: %gato to run a new %mentat thread.
 ::
 /-  *gato, *mentat, *mentat-chat
-/+  default-agent, dbug, mentat
+/+  default-agent, dbug, mentat, api-key
 |%
 +$  versioned-state
   $%  state-0
@@ -20,13 +20,74 @@
 |_  =bowl:gall
 +*  this  .
     def   ~(. (default-agent this %.n) bowl)
-++  on-init  on-init:def
+::++  on-init  on-init:def
+++  on-init
+  :: setup default models
+  ~&  "on-init - installing default mentat bot..."
+
+  =/  img-model=[label inference-model]
+    :-  'default'
+    :*  %private
+        'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4'  :: Stability-ai
+        api-key=default-api-key.api-key
+        timeout=`360
+        tokens=`500
+    ==
+  =/  img-set  (~(put by *model-set) img-model)
+
+  =/  query-model=[label inference-model]
+    :-  'default'
+    :*  %private
+        '02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3'  :: LLAMA-2-70b
+        api-key=default-api-key.api-key
+        timeout=`360
+        tokens=`500
+    ==
+  =/  query-set  (~(put by *model-set) query-model)
+
+  =/  chat-model=[label inference-model]
+    :-  'default'
+    :*  %private
+        'f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d'  :: LLAMA-2-13b
+        api-key=default-api-key.api-key
+        timeout=`360
+        tokens=`500
+    ==
+  =/  chat-set  (~(put by *model-set) chat-model)
+
+  =/  todo-model=[label inference-model]
+    :-  'default'
+    :*  %private
+        '83b6a56e7c828e667f21fd596c338fd4f0039b46bcfa18d973e8e70e455fda70'  :: Mistral-7b-instruct-v0.1
+        api-key=default-api-key.api-key
+        timeout=`360
+        tokens=`500
+    ==
+  =/  todo-set  (~(put by *model-set) todo-model)
+
+  =/  remind-model=[label inference-model]
+    :-  'default'
+    :*  %private
+        'f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d'  :: LLAMA-2-13b-chat
+        api-key=default-api-key.api-key
+        timeout=`360
+        tokens=`500
+    ==
+  =/  remind-set  (~(put by *model-set) todo-model)
+
+
+  =/  default-models  (models (malt (limo ~[[%img img-set] [%query query-set] [%chat chat-set] [%todo todo-set] [%remind remind-set]])))
+  =/  default-bot  `bot`[*contexts *compendium default-models %stopped]
+  `this(bots (~(put by bots) 'mentat' default-bot))
+::
 ++  on-save   !>(state)
 ::++  on-load  on-load:def
+::
 ++  on-load
   |=  old=vase
   ^-  (quip card _this)
   `this(state !<(state-0 old))
+::
 ++  on-poke
   |=  [=mark =vase]
   ^-  (quip card _this)
@@ -136,8 +197,11 @@
     ==
   ==
 ==
+::
 ++  on-watch  |=(path !!)
+::
 ++  on-leave  |=(path `..on-init)
+::
 ++  on-peek
   |=  =path
   ^-  (unit (unit cage))
@@ -238,6 +302,7 @@
     ``mentat-update+!>([%get-bots-set bots-set])
     ::
   ==
+::
 ++  on-agent
   |=  [=wire =sign:agent:gall]
   ^-  (quip card _this)
@@ -267,5 +332,6 @@
   ==
 ::
 ++  on-arvo   |=([wire sign-arvo] !!)
+::
 ++  on-fail   |=([term tang] `..on-init)
 --

@@ -49,6 +49,7 @@
       [%note %mentat-note]
       [%remind %mentat-remind]
       [%default %mentat-query]
+      [%todo %mentat-todo]
   ==
 
 ::
