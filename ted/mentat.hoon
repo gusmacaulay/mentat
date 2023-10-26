@@ -14,8 +14,8 @@
 ^-  thread:spider
 |=  arg=vase
 ^-  form:m
-=/  =bird  !<(bird arg)
 
+=/  =bird  !<(bird arg)
 =/  =bot-id  !<(bot-id vase.bird)
 
 ::
@@ -38,9 +38,11 @@
 =/  cntg  ?:(=(cntg-txt ~) %default `@tas`(crip (oust [0 1] q.->+:(need cntg-txt))))  :: actual centag  
 =/  centag  (centag cntg)
 
+
 :: Map centag to sub-thread name
 =/  cntg-tpl
   :~  [%chat %mentat-chat]
+      [%todo %mentat-todo]
       [%clear %mentat-chat]
       [%query %mentat-query] 
       [%img %mentat-image] 
@@ -63,21 +65,17 @@
 ;<  scry-models=update  bind:m  (scry update `path`['gx' 'mentat' 'get-models' bot-id 'noun' ~])
 
 ?:  =(+:scry-models ~)
-  ~&  "No models available for this bot."
   (pure:m !>(['No models available for this bot, check your setup.' vase.bird]))
 =/  bot-models  (models +:scry-models)
 ?.  (~(has by bot-models) centag)
-  ~&  "No model available for this centag."
   (pure:m !>(['No model available for this centag, check your setup.' vase.bird]))
 =/  mod-map  (~(got by bot-models) centag)
 ?.  (~(has by mod-map) label)
-  ~&  "No model available for this label."
   (pure:m !>(['No model available for this label, check your setup.' vase.bird]))
 
 :: Have a model for this bot/centag/label, scry for details
 ;<  sub-model=update  bind:m  (scry update `path`['gx' 'mentat' 'get-model' bot-id centag 'default' 'noun' ~])
 ?:  =(+:sub-model ~)
-  ~&  "No model available for this bot-id/centag/label."
   (pure:m !>(['No model available, check your setup.' vase.bird]))
 =/  model  (inference-model +:sub-model)
 
@@ -102,14 +100,16 @@
       now  
       model-id.model
   ==
-
+~&  'LOG USER'
+~&  log-user
 =/  log-ai=interaction
   :*  %ai
       return-text
       now
       model-id.model
   ==
-
+~&  'LOG AI'
+~&  log-ai
 :: Log question and response
 ;<  ~            bind:m  (poke-our %mentat [%mentat-action !>([%add-interaction [bot-id centag log-user 'default']])])
 ;<  ~            bind:m  (poke-our %mentat [%mentat-action !>([%add-interaction [bot-id centag log-ai 'default']])])

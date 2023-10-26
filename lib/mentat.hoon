@@ -1,4 +1,4 @@
-/-  spider, *gato, *mentat, mr=mentat-remind ::, mc=mentat-chat
+/-  spider, *gato, *mentat, *tasks, mr=mentat-remind
 /-  d=diary, g=groups, c=chat, ha=hark :: not sure which of these we'll need
 /+  *strandio, aws, regex
 =,  strand=strand:spider
@@ -225,6 +225,53 @@
         =/  cancel-url  (~(got by urls-obj) 'cancel')
         [(so:dejs:format get-url) (so:dejs:format cancel-url)]
   ::
+  ++  decode-task-response
+    |=  =json
+    ^-  [reply=@ta tasks=task-response]
+    ::^-  task-response
+    ?>  ?=([%o *] json)
+      =/  resp-obj  p.json
+      =,  dejs:format
+      =/  reply  (so (~(got by resp-obj) 'reply'))
+    ::~&  reply
+      =/  tasks-js  (~(got by resp-obj) 'tasks')
+      ?>  ?=([%a *] tasks-js)
+        =/  tasks  ((list task) (turn (turn p.tasks-js decode-task) need))
+        [reply (task-response [reply tasks])]
+        ::(task-response [reply tasks])
+
+  ++  decode-task
+    =,  dejs:format
+    =,  dejs-soft:format
+    %-  ot
+      :~  [%description so]
+          [%priority so]
+          [%completed bo]
+          [%created so]
+      ==
+  ::
+  ++  render-tasks
+    |=  tasks=(list task)
+    ^-  (list inline.d)
+    (zing (turn tasks render-task))
+  ::
+  ++  render-task
+    |=  =task
+    ^-  (list inline.d)
+    ::~&  description.task
+    =/  desc-obsidian  (crip ;:(weld (trip description.task) " [priority:: " (trip priority.task) "] [created:: " (trip created.task) "]"))
+    =/  desc-inline  `(list inline.d)`[[desc-obsidian] ~]
+    =/  task-inline  `(list inline.d)`[[%task completed.task desc-inline] ~]
+    =/  break-inline  `(list inline.d)`[[%break ~]~]
+    (weld task-inline break-inline)
+    ::(weld "[] " (trip description.task)))) 
+  ::++  decode-task
+  ::  |=  =json
+  ::  ?>  ?=([%o *] json)
+  ::  =/  description  (~(get by p.json) 'description')
+  ::  ~&  description
+  ::  description
+  ::
   ::  Decode json returned from the LLM
   ::  which should specify a notebook and
   ::  some data to add to it/create it with
@@ -237,12 +284,14 @@
       =/  data  (so:dejs:format (~(got by resp-obj) 'data'))
       =/  action  `@tas`(so:dejs:format (~(got by resp-obj) 'action'))
       =/  id-text  (~(got by resp-obj) 'notebook')
-      ?~  id-text
-        ::  No notebook id, therefore return as an %add regardless of passed in action
-        [*ship *@tas %add *time data]  
+      ::=/  id-text  [~ ~]
+      ::[*ship *@tas %add *time data]  
       ::  Parse passed in id to get ship, channel and timestamp
+      ::~&  id-text
       =/  id  (parse-id (so:dejs:format id-text))
-      [-.id +<.id action +>.id data]
+      ::~&  id
+      =/  structure  [-.id +<.id action +>.id data]
+      structure
   ::
   ::  Decode json returned from the LLM
   ::  which specifies details related to
@@ -318,6 +367,9 @@
     =/  id-cord  (crip (flop (scag (need (find "/" (flop txt))) (flop txt))))
     =/  id=@da  `@da`(ni:dejs:format n+id-cord)
     [shp channel id]
+  ::
+  ::  Scry for note data and append it to the user's question so that
+  ::  the LLM can comment on it or edit it. i.e. add to context.
   ::
   ++  append-note
     |=  [query=@t note-id=@t]
@@ -440,8 +492,8 @@
         %task
       =/  task-text  `tape`(zing `(list tape)`(turn q.inline flatten-inline))
       ?:  p.inline
-        (weld "[ ] " task-text)
-      (weld "[x] " task-text)
+        (weld "[x] " task-text)
+      (weld "[ ] " task-text)
     ==
   ::
   ::  Flatten list
@@ -720,4 +772,44 @@
       =/  text  (run:regex "/[a-z,A-Z,0-9,-]+" full-text)  :: the first "/Some-thing-123" found in the text
       =/  trimmed-text  (oust [0 1] q.->+:(need text))                  :: trim the slash from the beginning
       (crip trimmed-text)
+::
+::  Fetch latest note data (flattened)
+::
+++  fetch-latest-todo
+  |=  flag-c=[@p @tas]
+  =/  m  (strand ,tape)
+  ^-  form:m
+  ;<  our=@p               bind:m  get-our
+  ;<  now=@da              bind:m  get-time
+
+  :: Determine what group we're currently chatting in
+  =/  scry-chat=path  (stab '/gx/chat/chats/noun')
+  ;<  chats=(map flag:c chat:c)      bind:m  (scry (map flag:c chat:c) scry-chat)
+  =/  group-flag  (flag:g group:perm:(~(got by chats) flag-c)) :: Group of the chat we're conversing in
+
+  :: Check for existence of a %todo-daily notebook channel in our current group, shelf=(map flag diary)
+  =/  scry-path=path  (stab '/gx/diary/shelf/noun')
+  ;<  shelf=shelf.d        bind:m  (scry shelf.d scry-path)  :: Shelf is all diary data for all channels
+  :: flatten shelf to a list ~[[flag diary] [flag diary] ...] and skim to pull out the %todo-daily channel
+  :: for this group.  Due to unique naming, may actually be %todo-daily-123, etc.
+  =/  shlf-list  ~(tap by shelf)
+  =/  skim-list  (skim shlf-list |=([=flag.d =diary.d] &(=(group:perm:diary group-flag) =((find "todo-daily" (trip +.flag)) [~ 0]))))  
+  
+  ?:  =(skim-list ~)
+    :: Don't have a %todo-daily channel, therefore no pre-exisiting note
+    (pure:m "")
+  :: Have %todo-daily notebook channel, look for latest note
+  =/  diary-flag  -:(snag 0 skim-list)  :: flag of first item in list of matching notebooks in the group
+  =/  channel  (~(got by shelf) diary-flag)
+  =/  note-ids  ~(tap in ~(key by notes.channel))        :: a set of note ids flattened to a list
+
+  :: sort the note-ids by date and return most recent one
+  =/  sorted-ids  (sort note-ids gth)
+  =/  latest-note  (snag 0 sorted-ids)
+  =/  formatted-date  `tape`(scow %ud `@ud`latest-note)
+
+  =/  scry-note=path  (stab (crip ;:(weld "/gx/diary/diary/" (scow %p our) "/" (trip +.diary-flag) "/notes/note/" formatted-date "/noun")))
+  ;<  notey=note.d    bind:m  (scry note.d scry-note)
+  =/  stanley  (flatten-note notey)
+  (pure:m stanley)
 --

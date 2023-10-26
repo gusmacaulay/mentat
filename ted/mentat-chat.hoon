@@ -12,10 +12,8 @@
 :: incoming centag (useful if we have one sub-thread dealing with multiple centags)
 :: model is the inference-model (now replicate model) that this child thread
 :: will be running 
-
 =/  [=bird =centag model=inference-model]  !<([bird centag inference-model] arg)
 =/  =bot-id  !<(bot-id vase.bird)
-
 ::
 :: Set up the model
 ::
@@ -52,7 +50,7 @@
 ::
 ;<  replicate-vase=vase  bind:m  (query-replicate [bird model pre-prompt qst])
 =/  replicate-resp  !<([@tas @t] replicate-vase)
-
+~&  replicate-resp
 :: 
 :: Conversation response
 :: return [@tas reply @t] to ted/mentat.hoon
