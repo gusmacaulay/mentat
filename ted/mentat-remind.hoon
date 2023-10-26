@@ -11,6 +11,7 @@
 ::      accurate results.
 ::    Repeated events are limited to an arbitrary count of ten reps since there is no easy way to cancel them presently.
 ::    Repeated events may be stopped early (along with all other threads) with the Dojo :spider|kill
+::    Still seeing instances of data for "delay" being passed as an expression like "45*60"
 ::
 ::  There is something wrong with running several events at once.
 ::    Running a one-off event at the same time as a repeated event generally works.
@@ -119,7 +120,7 @@
 =/  y=tape  (weld (scag 1 y-text) (swag [2 3] y-text))
 ::
 =/  sys-prompt-context  "The current year is {<y>}. The current month is {<m:dt>}. The current day of the month is {<d.t:dt>}. The current hour is {<h.t:dt>}. The current minute is {<m.t:dt>}. The current second is {<s.t:dt>}."
-=/  sys-prompt-static  'You are a helpful and very clever assistant for setting reminders. Your entire answer must be a JSON document in the format: {"action": $action, "delay": $delay, "when": $when, "repeat": $repeat, "message": $message}. Never under any circumstances respond with anything but a JSON document. $action may be "remind" or "poke". $delay may be null. $delay is a period of time until the message will be sent, expressed as a whole number of seconds. If the user does not ask for a duration of time $delay must be set to null. $when is a string. $when may be null. $when is an ISO time-stamp when the message will be sent. $when will have no UTC offset. If $delay is null then $when is null.  $repeat may be "minutely", "hourly", "daily", "weekly" or "once". $repeat defaults to "once". $message is a string which is the reminder text to send later.'
+=/  sys-prompt-static  'As an assistant for specifying when a future reminder should be set, you only provide answers in the JSON format. Your entire answer must be a JSON document in the format: {"action": $action, "delay": $delay, "when": $when, "repeat": $repeat, "message": $message}. Your answers should have no comments. $action must be "remind". If the user specifies a time of day, $delay is 0. If the user does not specify the time of day, $delay is the period of time in seconds until the message is sent. $when is a string. $when is an ISO time-stamp when the message will be sent. $when does not have a UTC offset. $repeat may be "minutely", "hourly", "daily", "weekly" or "once". $repeat defaults to "once". $message is a string which is the reminder text to send later.'
 =/  sys-prompt  (crip (weld sys-prompt-context (trip sys-prompt-static)))
 
 ::
@@ -156,7 +157,7 @@
   ~&  "start: {<start>}"
   =/  =task:behn  [%wait start]
   =/  =card:agent:gall  [%pass /mentat-reminder %arvo %b task]
-  =/  event-start-text=@t  ?:(=(rep 0) (crip "Event set for {<start>}") '')
+  =/  event-start-text=@t  ?:(=(rep 0) (crip "Event set for {<start>} | Repeat: {<repeat:reminder>}") '')
   =/  event-trigger-text=@t  ?:(=(rep 0) '' message:reminder)
   ?:  =(rep max-rep)
     (pure:m !>([%ok `reply`message:reminder `@t`message:reminder]))

@@ -287,7 +287,6 @@
       ::=/  id-text  [~ ~]
       ::[*ship *@tas %add *time data]  
       ::  Parse passed in id to get ship, channel and timestamp
-      ::~&  id-text
       =/  id  (parse-id (so:dejs:format id-text))
       ::~&  id
       =/  structure  [-.id +<.id action +>.id data]
