@@ -3,6 +3,29 @@
 /+  *strandio, regex
 =,  strand=strand:spider
 |%
+    ::
+  ::  Build conversation cord for conversation models
+  ::  with a size parameter to restrict to n most recent
+  ++  build-conversation-n
+    |=  [=bird =bot-id =centag =label size=@ud]
+    =/  m  (strand ,vase)
+    ^-  form:m
+
+    ;<  has-dialogue=update        bind:m  (scry update `path`['gx' 'mentat' 'has-dialogue' bot-id centag label 'noun' ~])
+
+    ?.  (? +:has-dialogue)
+      :: Start of dialogue
+      (pure:m !>((crip ;:(weld "[INST] " (trip text.bird) " [/INST]"))))
+    :: Append question to dialogue
+    ;<  dlog=update          bind:m  (scry update `path`['gx' 'mentat' 'get-dialogue' bot-id centag label 'noun' ~])
+    =/  dlg  (dialogue +:dlog)
+    =/  end  (lent dlg)
+    =/  beg  ?:((gth size end) 0 (sub end size))  :: avoid underflow error
+    ::=/  beg  (sub end size) 
+    =/  inter-parts  `(list tape)`(turn (swag [beg end] dlg) flatten-interaction)
+    =/  inter-tape  `tape`(zing inter-parts)
+    =/  inter-upd  (crip ;:(weld inter-tape "[INST] " (trip text.bird) " [/INST]"))
+    (pure:m !>(inter-upd))
   ::
   ::  Build conversation cord for conversation models
   ::

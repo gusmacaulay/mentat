@@ -1,10 +1,10 @@
 :~  title+'mentat'
-    info+'Your human computer'
+    info+'Sovereign personal assistant bot'
     color+0xc.baa6
-    glob-ames+[~sipnem-davdyl-wolfun-solnym 0v0]
+    glob-ames+[~tagrev-lacmur-lomped-firser 0v0]
     base+'mentat'
-    version+[0 1 0]
-    license+'GPLv3'
+    version+[0 1 1]
+    license+'MIT'
     image+'https://wolfun.syd1.digitaloceanspaces.com/img--2023.8.24..02.17.07..6bc1.png'
     website+'https://gitlab.com/thuser/mentat'
 ==

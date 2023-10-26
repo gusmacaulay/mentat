@@ -16,7 +16,7 @@
 :: will be running 
 
 =/  [=bird =centag model=inference-model]  !<([bird centag inference-model] arg)
-=/  =bot-id  !<(bot-id vase.bird) 
+=/  =bot-id  !<(bot-id vase.bird)
 
 ::
 :: Set up the model
@@ -55,10 +55,6 @@
 ?:  =(-.replicate-resp %error)
   (pure:m !>([%error `reply`+.replicate-resp ~]))
 
-::
-:: Text response
-::
-~&  "TEXT RESPONSE"
 :: let's take the text output and use it to create a notebook instead
 :: we need to poke diary.hoon with %diary-action (or %diary-action-1 or %diary-action-0 ??) and the diary-action
 
@@ -66,15 +62,8 @@
 :: notebook and data fields.
 :: return the ship, channel, notebook id, and data
 =/  json-resp  (need (de:json:html +.replicate-resp))
-~&  "json-resp: {<json-resp>}"
 =/  [shp=@p chn=@tas act=@tas id=time data=@t]  (decode-generated-notebook json-resp)
 =/  flag=flag.g  [shp chn]  :: output to this ship & channel (regardless of group)
-
-~&  "shp {<shp>}"
-~&  "chn {<chn>}"
-~&  "act {<act>}"
-~&  "id {<id>}"
-~&  "data {<data>}"
 
 ?+  act    (pure:m !>([%error `reply`'Unexpected error']))
     %add
@@ -91,9 +80,6 @@
     ==
 
   =/  delt  [%add essay]  :: have to work out how to deal with '%comment' as the action
-  ::=/  diff=diff.notes.d  [%notes (time now) delt]
-  ::=/  diff-diary=diff.d  diff
-  ::=/  flag-add=flag.g  [shp chn]
   =/  flag-add=flag.g  [our %test-notebook]  :: ASM the group should be passed in at setup
   =/  diff-diary=diff.d  [%notes (time now) delt]
   =/  diary-action=action.d  [flag-add [(time now) diff-diary]]
@@ -113,10 +99,6 @@
     ==
 
   =/  delt  [act essay]
-  
-  ::=/  diff=diff.notes.d  [%notes id delt]
-  ::=/  diff-diary=diff.d  diff
-  
   =/  diff-diary=diff.d  [%notes id delt]
   
   =/  diary-action=action.d  [flag [*time diff-diary]]         :: for %edit, send *time, not now
