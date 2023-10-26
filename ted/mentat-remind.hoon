@@ -109,7 +109,6 @@
 :: Ignore messages from other ships if set to %private
 ::
 ?:  &(=(view.model %private) ?!(=(msg-origin our)))
-  ~&  "Message origin not our ship - ignoring"
   !!
 
 ::  UTC

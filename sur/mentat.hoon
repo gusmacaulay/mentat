@@ -21,7 +21,7 @@
 ::
 :: Model
 ::
-+$  centag  ?(%chat %query %img %comment %edit %note %default %clear %remind)  :: like a hashtag, but for Urbit
++$  centag  ?(%chat %query %img %comment %edit %note %default %clear %remind %todo)  :: like a hashtag, but for Urbit
 +$  view  ?(%public %private)
 +$  participant  ?(%ai %user)
 

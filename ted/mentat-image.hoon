@@ -2,7 +2,7 @@
 :: %mentat sub-thread to create images from LLM and store
 :: them in users S3 bucket if available
 ::
-/-  spider, *gato, s=s3, *mentat
+/-  spider, *gato, s=storage, *mentat
 /+  *strandio, aws, *mentat, regex
 =,  strand=strand:spider
 =/  m  (strand ,vase)
@@ -16,7 +16,7 @@
 
 =/  [=bird =centag model=inference-model]  !<([bird centag inference-model] arg)
 =/  =bot-id  !<(bot-id vase.bird)
-
+   
 ::
 :: Set up the model
 ::
@@ -32,7 +32,6 @@
 :: Ignore messages from other ships if set to %private
 ::
 ?:  &(=(view.model %private) ?!(=(msg-origin our)))
-  ~&  "Message origin not our ship - ignoring"
   !!
 
 ::
@@ -47,16 +46,15 @@
 ::
 :: Image response (poke silo with returned data)
 ::
-
-:: Get S3 credentials and configuration
-;<  cred=update.s  bind:m  (scry update.s `path`['gx' 's3-store' 'credentials' 'noun' ~])
-;<  cnfg=update.s  bind:m  (scry update.s `path`['gx' 's3-store' 'configuration' 'noun' ~])
+:: Get S3 credentials and configuration - (S3-store has been changed to storage)
+;<  cred=update.s  bind:m  (scry update.s `path`['gx' 'storage' 'credentials' 'noun' ~])
+;<  cnfg=update.s  bind:m  (scry update.s `path`['gx' 'storage' 'configuration' 'noun' ~])
 
 ?>  ?=([%credentials *] cred)
 =/  endpoint  endpoint.credentials.cred
 =/  secret  secret-access-key.credentials.cred
 =/  access-id  access-key-id.credentials.cred
-::
+
 ?>  ?=([%configuration *] cnfg)
 =/  bucket  current-bucket.configuration.cnfg
 =/  region  region.configuration.cnfg
@@ -86,7 +84,7 @@
     (pure:m !>([%ok `reply`[%story [[[%image +.s3-return 300 300 'mentat generated image'] ~] [[+.s3-return] ~]]]]))
   ==
     %fail
-  (pure:m !>([%error `reply`(crip (weld "mentat] error: " (trip (need +<.image-data))))]))
+  (pure:m !>([%error `reply`(crip (weld "[mentat] error: " (trip (need +<.image-data))))]))
     %ok
   :: upload data to s3
   ;<  s3-link=vase    bind:m  (s3-upload (need +>.image-data) (need +<.image-data) auth bucket region secret access-id endpoint)
