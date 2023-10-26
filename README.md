@@ -63,6 +63,7 @@ model with a centag, like so:
 /mentat %query Once upon a time on an Urbit ship...
 /mentat %img A photorealistic image of an Urbit ship
 /mentat %remind in five minutes remind me to take a coffee break
+/mentat %todo I need to remember to take my passport this afternoon
 ```
 
 Currently valid centags are:
@@ -71,6 +72,32 @@ Currently valid centags are:
 %img 
 %todo
 %remind
+
+#### %chat
+The chat model keeps track of your ongoing conversation with the LLM using it as context for subsequent interactions.  Use is quite straightforward, the same as you would use ChatGPT or any other chatbot.
+Remember to use the %chat centag for each interaction.
+
+#### %query
+Query provides longer answers to questions than the chat model (currently set to avuncular professor mode), but it does not retain context from previous interactions, so every question is a standalone query.
+
+#### %img
+Just what is says on the box.  Images are stored in your current S3 bucket if you have one set up and linked to your Urbit ship.
+
+#### %todo
+Todo builds a daily todo list in a notebook in the same group as your current chat.  Todo builds a new todo list if it can't find a current one, and it reads in previous conversation data and the most recent daily todo list as context.
+
+Tasks in the note are shown with checkboxes so you can mark them complete as you go through your day.
+
+#### %remind
+Remind sets reminders for you that will pop up in your chat after the given interval or at the given time.  Remind can even set repeated reminders at pre-defined fixed intervals (minutely, daily, hourly, weekly).  To get the best behaviour from this bot you need to use AM/PM time rather than 24hour time.
+
+Currently the bot knows the current date and time, but it does not have the users local time-zone as context, so all times should be interpreted as UTC.
+
+Some basic usage patterns to consider:
+* Once-off, interval    `/mentat %remind in fifteen minutes tell me to take a break`
+* Once-off, time of day `/mentat %remind at 8am tomorrow tell me to go outside`
+* Repeated              `/mentat %remind starting in on hour, every hour, remind me to look at something twenty feet away for twenty seconds`
+
 
 ###  Other notes: 
 
