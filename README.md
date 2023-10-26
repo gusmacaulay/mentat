@@ -1,11 +1,10 @@
 ## %mentat - An Urbit Chatbot
 
-%mentat is an interface to a selection of AI models.  It is designed to work specifically 
-with replicate models (https://replicate.com), however, with minor tweaks it can be tuned 
-for OpenAI or inference/huggingface models if required.
+%mentat is an interface to a selection of LLMs.  It is designed to work specifically 
+with Replicate.com models.
 
-It currently supports, queries, chat, image generation, and todo list management.  In progress
-are message notifications, image generation for %turf and counter-prompted reminders.
+It currently supports queries, chat, image generation, todo list management and reminders, 
+with %turf integration for images, and notifications under construction.
 
 You can find models to use at https://replicate.com/
 
@@ -63,6 +62,7 @@ model with a centag, like so:
 ```
 /mentat %query Once upon a time on an Urbit ship...
 /mentat %img A photorealistic image of an Urbit ship
+/mentat %remind in five minutes remind me to take a coffee break
 ```
 
 Currently valid centags are:
