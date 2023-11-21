@@ -27,7 +27,7 @@
 
 ;<  our=@p               bind:m  get-our
 ;<  now=@da              bind:m  get-time
-=/  flag=flag.g  [our %daily]    ::: TODO - WHY, oh WHY is this hardcoded???
+=/  flag=flag.g  [our %daily]
 
 :: Build conversation from data
 ::
@@ -35,7 +35,7 @@
 ;<  qst-vase=vase     bind:m  (build-conversation-n bird bot-id centag 'default' 3)
 =/  history  !<(@t qst-vase)
 
-;<  prev-note=tape      bind:m  (fetch-latest-todo flag.bird)
+;<  prev-note=tape      bind:m  (fetch-latest-todo flag.bird) 
 
 ::
 :: Query replicate.com
@@ -46,7 +46,6 @@
 =/  summary  "My Request for you:\0a"
 =/  final-warning  "REMEMBER REPLY IN THE JSON FORMAT SPECIFIED"
 =/  all-prompt  (crip ;:(weld (trip pre-prompt) inter-prompt prev-note summary date-prompt (trip question)))
-
 ;<  replicate-vase=vase  bind:m  (query-replicate [bird model pre-prompt all-prompt])
 =/  replicate-resp  !<([@tas @t] replicate-vase)
 

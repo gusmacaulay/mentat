@@ -1,8 +1,8 @@
-::TODO:
-:: This app should interface with a web UI and with %gato so that
-:: dojo setup for %gato isn't required.
-:: Pokes from the UI should be validated, and the data used to poke
-:: %gato to run a new %mentat thread.
+::
+:: %mentat app provides state management for %mentat, simple pokes
+:: and scries to view and update the models, and conversations 
+:: between user and LLMs.  Interfaces with %gato, so that dojo
+:: %gato setup is not required.
 ::
 /-  *gato, *mentat, *mentat-chat
 /+  default-agent, dbug, mentat, api-key
@@ -20,7 +20,7 @@
 |_  =bowl:gall
 +*  this  .
     def   ~(. (default-agent this %.n) bowl)
-::++  on-init  on-init:def
+::
 ++  on-init
   :: setup default models
   ~&  "on-init - installing default mentat bot..."
@@ -28,7 +28,7 @@
   =/  img-model=[label inference-model]
     :-  'default'
     :*  %private
-        'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4'  :: Stability-ai
+        'fbbd475b1084de80c47c35bfe4ae64b964294aa7e237e6537eed938cfd24903d'  :: lucato/sdxl-lcm
         api-key=default-api-key.api-key
         timeout=`360
         tokens=`500
@@ -73,20 +73,44 @@
         timeout=`360
         tokens=`500
     ==
-  =/  remind-set  (~(put by *model-set) todo-model)
-
+  =/  remind-set  (~(put by *model-set) remind-model)
 
   =/  default-models  (models (malt (limo ~[[%img img-set] [%query query-set] [%chat chat-set] [%todo todo-set] [%remind remind-set]])))
   =/  default-bot  `bot`[*contexts *compendium default-models %stopped]
   `this(bots (~(put by bots) 'mentat' default-bot))
 ::
 ++  on-save   !>(state)
-::++  on-load  on-load:def
 ::
 ++  on-load
-  |=  old=vase
+  |=  old-state=vase
   ^-  (quip card _this)
-  `this(state !<(state-0 old))
+  =/  old  !<(versioned-state old-state)
+
+  ?-  -.old
+    :: Fix incorrect default %remind model for early installations
+    %0
+      =/  bots-0  bots.old
+      ?.  (~(has by bots-0) 'mentat')
+        `this(state old)  :: %mentat bot has been deleted, make no changes
+      =/  mentat-bot  (~(got by bots-0) 'mentat')
+      ?.  (~(has by models.mentat-bot) %remind)
+        `this(state old)  :: %remind models have been deleted, make no changes
+      =/  remind-models  (~(got by models.mentat-bot) %remind)
+      ?.  (~(has by remind-models) 'default')
+        `this(state old)  :: default remind models has been deleted, make no changes
+      =/  remind-model  (~(got by remind-models) 'default')
+      ?:  =(model-id.remind-model 'f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d')
+        ~&  "Old state ok, no update required"
+        `this(state old)
+      :: just change the wing with model-id, we want to keep the rest of the model as is
+      =/  upd-remind-model  remind-model(model-id 'f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d')
+      =/  remind-set  (~(put by remind-models) 'default' upd-remind-model)
+      =/  upd-models  (~(put by models.mentat-bot) %remind remind-set)
+      =/  upd-bot  [contexts.mentat-bot compendium.mentat-bot upd-models status.mentat-bot]
+      ~&  "Updating out-dated default %remind model"
+      `this(bots (~(put by bots) 'mentat' upd-bot))
+  ::  %1
+  ==
 ::
 ++  on-poke
   |=  [=mark =vase]

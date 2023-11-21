@@ -786,18 +786,18 @@
   ;<  chats=(map flag:c chat:c)      bind:m  (scry (map flag:c chat:c) scry-chat)
   =/  group-flag  (flag:g group:perm:(~(got by chats) flag-c)) :: Group of the chat we're conversing in
 
-  :: Check for existence of a %todo-daily notebook channel in our current group, shelf=(map flag diary)
+  :: Check for existence of a %daily notebook channel in our current group, shelf=(map flag diary)
   =/  scry-path=path  (stab '/gx/diary/shelf/noun')
   ;<  shelf=shelf.d        bind:m  (scry shelf.d scry-path)  :: Shelf is all diary data for all channels
-  :: flatten shelf to a list ~[[flag diary] [flag diary] ...] and skim to pull out the %todo-daily channel
-  :: for this group.  Due to unique naming, may actually be %todo-daily-123, etc.
+  :: flatten shelf to a list ~[[flag diary] [flag diary] ...] and skim to pull out the %daily channel
+  :: for this group.  Due to unique naming, may actually be %daily-123, etc.
   =/  shlf-list  ~(tap by shelf)
-  =/  skim-list  (skim shlf-list |=([=flag.d =diary.d] &(=(group:perm:diary group-flag) =((find "todo-daily" (trip +.flag)) [~ 0]))))  
+  =/  skim-list  (skim shlf-list |=([=flag.d =diary.d] &(=(group:perm:diary group-flag) =((find "daily" (trip +.flag)) [~ 0]))))  
   
   ?:  =(skim-list ~)
-    :: Don't have a %todo-daily channel, therefore no pre-exisiting note
+    :: Don't have a %daily channel, therefore no pre-exisiting note
     (pure:m "")
-  :: Have %todo-daily notebook channel, look for latest note
+  :: Have %daily notebook channel, look for latest note
   =/  diary-flag  -:(snag 0 skim-list)  :: flag of first item in list of matching notebooks in the group
   =/  channel  (~(got by shelf) diary-flag)
   =/  note-ids  ~(tap in ~(key by notes.channel))        :: a set of note ids flattened to a list
