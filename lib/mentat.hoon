@@ -48,7 +48,7 @@
     =/  req  !<(request:http arg)
 
     =/  counter  1      :: time-out after 232 seconds (counter > 60)
-    =/  prev  0         :: for fibonacci sequence
+    =/  prev  1         :: for fibonacci sequence
     =/  exit  'false'   :: exit on null http response, non-200 status code, status=failed, completed, or cancelled
     =/  return  *[@t (unit @t)]
     =/  old-id  [*@p *@da]
@@ -57,14 +57,12 @@
     :: would be good to allow user to add their own max time-out
     |-
     ?:  |((gth counter timeout) =(exit 'true'))
+      ;<  ~                               bind:m  (poll-trim flag old-id)
       ?:  (gth counter timeout)
         (pure:m !>(['failed' `'timed out']))
       (pure:m !>(return))
-
-    :: convert counter (use prev so as not to go over time) to seconds for timer
     =/  seconds  (crip (weld "~s" (trip `@t`(scot %ud prev))))
-    =/  sleeper  `@dr`(slav %dr seconds)
-    ::~&  "Polling replicate GET url - trying again in {<seconds>} seconds..."
+    =/  sleeper  `@dr`(sub `@dr`(slav %dr seconds) ~s1)  :: initial sleep is zero seconds
     ;<  ~                                 bind:m  (sleep sleeper)                     :: poll on a fibonacci basis
     ;<  poll-resp=[@t (unit @t)]          bind:m  (poll-replicate req)
     ;<  id=[@p @da]                       bind:m  (poll-message flag old-id counter)  :: "waiting" output
@@ -75,12 +73,11 @@
       return        poll-resp
       exit          ?:(|(=(-.poll-resp 'succeeded') =(-.poll-resp 'failed') =(-.poll-resp 'cancelled') =(-.poll-resp 'completed') =(-.poll-resp 'http-error')) 'true' 'false')
     ==
-  
   ::
   ::  "waiting" message output direct to chat, since we can only return a final value to %gato
   ::
   ++  poll-message
-    |=  [=flag.c old-id=[@p @da] counter=@ud]
+    |=  [=flag.c old-id=(pair ship time) counter=@ud]
     =/  m  (strand ,[@p @da])
     ^-  form:m
 
@@ -89,31 +86,51 @@
 
     =/  txt-list  ?:(=(counter 0) ~['...waiting'] ~[(crip (weld "...waiting" `tape`(reap +(counter) '.')))])
 
-    =/  id  [our now]
+    :: Need to send through a high precision time to get this to work
+    =/  now-high-precision  (time (add now (unm:chrono:userlib now)))
+    =/  id  `(pair ship time)`[our now-high-precision]
 
     =/  memo=memo:c
       :*  replying=~  :: ~ is latest message, an `id, which is [ship time] replies to a specific message
-          author=our
-          sent=now
+          author=p.id
+          sent=q.id
           [%story [*(list block.c) `(list inline.c)`txt-list]]
       ==
 
     =/  delt-add  [%add memo]
     =/  diff-add  `diff:c`[%writs `diff:writs:c`[id delt-add]]
-    =/  update-add  [now diff-add]
+    =/  update-add  [q.id diff-add]
     =/  action-add=action.c  [flag update-add]
     
     =/  delt-del  [%del ~]
     =/  diff-del  `diff:c`[%writs `diff:writs:c`[old-id delt-del]]  :: old-id is previous add
-    =/  update-del  [now diff-del]
+    =/  update-del  [q.old-id diff-del]
     =/  action-del=action.c  [flag update-del]
     
-    ?:  (gth counter 0)
-      ;<  ~           bind:m  (poke-our %chat [%chat-action !>([action-del])])
-      ;<  ~           bind:m  (poke-our %chat [%chat-action !>([action-add])])
+    ?:  (gth counter 1)
+      :: counter greater than zero
+      ;<  ~           bind:m  (poke-our %chat [%chat-action-0 !>([action-del])])
+      ;<  ~           bind:m  (poke-our %chat [%chat-action-0 !>([action-add])])
       (pure:m id)
     ;<  ~           bind:m  (poke-our %chat [%chat-action !>([action-add])])
     (pure:m id)
+  ::
+  :: Trim the last "...waiting..." from the chat
+  :: NOTE: there is a caching issue in groups chat that means the final "...waiting..."
+  ::       message won't be removed until the UI refreshes.  Nothing we can do from
+  ::       this end.
+  ::
+  ++  poll-trim
+    |=  [=flag.c old-id=(pair ship time)]
+    =/  m  (strand ,~)
+    ^-  form:m
+
+    =/  delt-del  [%del ~]
+    =/  diff-del  `diff:c`[%writs `diff:writs:c`[old-id delt-del]]
+    =/  update-del  [q.old-id diff-del]
+    =/  action-del=action.c  [flag update-del]
+    ;<  ~           bind:m  (poke-our %chat [%chat-action-0 !>([action-del])])
+    (pure:m ~)
   ::
   ::  Polling http-request
   ::
