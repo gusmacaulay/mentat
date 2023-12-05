@@ -72,8 +72,7 @@
   ::try again with redirect url (just fail out if we don't get an image result)
   ;<  redirect-vase=vase    bind:m  (get-image (need +<.image-data) auth)
   =/  redirect-data  !<([@tas (unit @t) (unit mime)] redirect-vase)
-  ?.  =(-.redirect-data %ok)
-    (pure:m !>([%error `reply`'[mentat] image generation redirect error' 'mentat error - image generation redirect failed']))
+  ?.  =(-.redirect-data %ok)  (pure:m !>([%error `reply`'[mentat] image generation redirect error' 'mentat error - image generation redirect failed']))
   :: upload data to s3
   ;<  s3-link=vase    bind:m  (s3-upload (need +>.redirect-data) (need +<.redirect-data) auth bucket region secret access-id endpoint)
   =/  s3-return  !<([@tas @t] s3-link)
