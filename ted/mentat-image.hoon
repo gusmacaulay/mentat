@@ -41,7 +41,7 @@
 =/  replicate-resp  !<([@tas @t] replicate-vase)
 
 ?:  =(-.replicate-resp %error)
-  (pure:m !>([%error `reply`+.replicate-resp]))
+  (pure:m !>([%error `reply`+.replicate-resp +.replicate-resp]))
 
 ::
 :: Image response (poke silo with returned data)
@@ -67,32 +67,32 @@
 ;<  image-vase=vase       bind:m  (get-image +.replicate-resp auth)
 =/  image-data  !<([@tas (unit @t) (unit mime)] image-vase)
 
-?+  -.image-data  (pure:m !>([%error `reply`'[mentat] unknown error']))
+?+  -.image-data  (pure:m !>([%error `reply`'[mentat] unknown error' 'unknown %mentat error']))
     %redirect
   ::try again with redirect url (just fail out if we don't get an image result)
   ;<  redirect-vase=vase    bind:m  (get-image (need +<.image-data) auth)
   =/  redirect-data  !<([@tas (unit @t) (unit mime)] redirect-vase)
   ?.  =(-.redirect-data %ok)
-    (pure:m !>([%error `reply`'[mentat] image generation redirect error']))
+    (pure:m !>([%error `reply`'[mentat] image generation redirect error' 'mentat error - image generation redirect failed']))
   :: upload data to s3
   ;<  s3-link=vase    bind:m  (s3-upload (need +>.redirect-data) (need +<.redirect-data) auth bucket region secret access-id endpoint)
   =/  s3-return  !<([@tas @t] s3-link)
-  ?+  -.s3-return  (pure:m !>(['[mentat] unknown error' vase.bird]))
+  ?+  -.s3-return  (pure:m !>([%error `reply`'[mentat] unknown error' 'unknown %mentat error']))
       %error
-    (pure:m !>([%error `reply`+.s3-return]))
+    (pure:m !>([%error `reply`+.s3-return +.s3-return]))
       %ok
-    (pure:m !>([%ok `reply`[%story [[[%image +.s3-return 300 300 'mentat generated image'] ~] [[+.s3-return] ~]]]]))
+    (pure:m !>([%ok `reply`[%story [[[%image +.s3-return 300 300 'mentat generated image'] ~] [[+.s3-return] ~]]] +.s3-return]))
   ==
     %fail
-  (pure:m !>([%error `reply`(crip (weld "[mentat] error: " (trip (need +<.image-data))))]))
+  (pure:m !>([%error `reply`(crip (weld "[mentat] error: " (trip (need +<.image-data)))) (need +<.image-data)]))
     %ok
   :: upload data to s3
   ;<  s3-link=vase    bind:m  (s3-upload (need +>.image-data) (need +<.image-data) auth bucket region secret access-id endpoint)
   =/  s3-return  !<([@tas @t] s3-link)
-  ?+  -.s3-return  (pure:m !>([%error `reply`'[mentat] unknown error']))
+  ?+  -.s3-return  (pure:m !>([%error `reply`'[mentat] unknown error' 'unknown %mentat error']))
       %error
-    (pure:m !>([%error `reply`+.s3-return]))
+    (pure:m !>([%error `reply`+.s3-return +.s3-return]))
       %ok
-    (pure:m !>([%ok `reply`[%story [[[%image +.s3-return 300 300 'mentat generated image'] ~] [[+.s3-return] ~]]]]))
+    (pure:m !>([%ok `reply`[%story [[[%image +.s3-return 300 300 'mentat generated image'] ~] [[+.s3-return] ~]]] +.s3-return]))
   ==
 ==

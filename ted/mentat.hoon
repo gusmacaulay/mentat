@@ -100,16 +100,14 @@
       now  
       model-id.model
   ==
-~&  'LOG USER'
-~&  log-user
+
 =/  log-ai=interaction
   :*  %ai
       return-text
       now
       model-id.model
   ==
-~&  'LOG AI'
-~&  log-ai
+
 :: Log question and response
 ;<  ~            bind:m  (poke-our %mentat [%mentat-action !>([%add-interaction [bot-id centag log-user 'default']])])
 ;<  ~            bind:m  (poke-our %mentat [%mentat-action !>([%add-interaction [bot-id centag log-ai 'default']])])
